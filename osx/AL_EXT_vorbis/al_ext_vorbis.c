@@ -94,6 +94,9 @@ static inline ALvoid __alMixVorbisMono(ALcontext *ctx, ALsource *src,
                                        Float32 *dst, Float32 *in, long samples,
                                        UInt32 devchannels)
 {
+#if 1
+    assert(0);  // !!! FIXME: Updated for > 2 channels.
+#else
     register Float32 sample;
     register Float32 gain0;
     register Float32 gain1;
@@ -128,6 +131,7 @@ static inline ALvoid __alMixVorbisMono(ALcontext *ctx, ALsource *src,
         dst[channel2] += sample * gain2;
         dst += devchannels;
     } // while
+#endif
 } // __alMixVorbisMono
 
 
@@ -320,8 +324,11 @@ UInt32 __alMixVorbis(struct ALcontext_struct *ctx, struct ALbuffer_struct *buf,
 } // __alMixVorbis
 
 
-static ALboolean __alPrepareBufferVorbis(ALsource *src, ALbuffer *buf)
+static ALboolean __alPrepareBufferVorbis(ALcontext *ctx,
+                                         ALsource *src,
+                                         ALbuffer *buf)
 {
+    // !!! FIXME: Note context sample rate.
     VorbisOpaque *o = calloc(1, sizeof (VorbisOpaque));
     if (o == NULL)
     {

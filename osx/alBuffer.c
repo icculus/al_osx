@@ -291,8 +291,8 @@ ALboolean __alResampleStereo8(ALvoid *_src, ALsizei _srcsize,
             register int dstsize = _dstsize;
             register int eps = 0;
             _srcsize -= 4;  // fudge factor.
-            sampL = (SInt32) src[0];
-            sampR = (SInt32) src[1];
+            sampL = ((SInt32) src[0]) - 128;
+            sampR = ((SInt32) src[1]) - 128;
             while (dst != max)
             {
                 dst[0] = sampL;
@@ -302,8 +302,8 @@ ALboolean __alResampleStereo8(ALvoid *_src, ALsizei _srcsize,
                 if ((eps << 1) >= dstsize)
                 {
                     src += 2;
-                    sampL = (src[0] + lastSampL) >> 1;
-                    sampR = (src[1] + lastSampR) >> 1;
+                    sampL = ((((SInt32) src[0]) - 128) + lastSampL) >> 1;
+                    sampR = ((((SInt32) src[1]) - 128) + lastSampR) >> 1;
                     lastSampL = sampL;
                     lastSampR = sampR;
                     eps -= dstsize;
@@ -369,8 +369,8 @@ ALboolean __alResampleStereo8(ALvoid *_src, ALsizei _srcsize,
         register int srcsize = _srcsize;
         register int eps = 0;
         srcsize -= 4;  // fudge factor.
-        lastSampL = sampL = (SInt32) src[0];
-        lastSampR = sampR = (SInt32) src[1];
+        lastSampL = sampL = ((SInt32) src[0]) - 128;
+        lastSampR = sampR = ((SInt32) src[1]) - 128;
         while (dst != max)
         {
             src += 2;
@@ -708,7 +708,7 @@ ALboolean __alResampleMono8(ALvoid *_src, ALsizei _srcsize,
             register int srcsize = _srcsize;
             register int eps = 0;
             srcsize -= 2;  // fudge factor.
-            samp = (SInt32) *src;
+            samp = ((SInt32) *src) - 128;
             while (dst != max)
             {
                 *dst = samp;
@@ -779,7 +779,7 @@ ALboolean __alResampleMono8(ALvoid *_src, ALsizei _srcsize,
         register int srcsize = _srcsize;
         register int eps = 0;
         srcsize -= 2;  // fudge factor.
-        lastSamp = samp = (SInt32) *src;
+        lastSamp = samp = ((SInt32) *src) - 128;
         while (dst != max)
         {
             src++;
@@ -1096,13 +1096,51 @@ ALboolean __alResampleMonoFloat32(ALvoid *_src, ALsizei _srcsize,
 
         else  // arbitrary upsampling.
         {
-            assert(0);  // !!! FIXME: Fill this in when you finish debugging the integer version.
+            // Arbitrary upsampling based on Bresenham's line algorithm.
+            // !!! FIXME: Needs better interpolation.
+            register int dstsize = _dstsize;
+            register int srcsize = _srcsize;
+            register int eps = 0;
+            srcsize -= 4;  // fudge factor.
+            samp = (SInt32) *src;
+            while (dst != max)
+            {
+                *dst = samp;
+                dst++;
+                eps += srcsize;
+                if ((eps << 1) >= dstsize)
+                {
+                    src++;
+                    samp = (*src + lastSamp) * 0.5f;
+                    lastSamp = samp;
+                    eps -= dstsize;
+                } // if
+            } // while
         } // else
     } // if
 
     else  // downsampling
     {
-        assert(0);  // !!! FIXME: Fill this in when you finish debugging the integer version.
+        // Arbitrary downsampling based on Bresenham's line algorithm.
+        // !!! FIXME: Needs better interpolation.
+        register int dstsize = _dstsize;
+        register int srcsize = _srcsize;
+        register int eps = 0;
+        srcsize -= 4;  // fudge factor.
+        lastSamp = samp = (SInt32) *src;
+        while (dst != max)
+        {
+            src++;
+            eps += dstsize;
+            if ((eps << 1) >= srcsize)
+            {
+                *dst = samp;
+                dst++;
+                samp = (*src + lastSamp) * 0.5f;
+                lastSamp = samp;
+                eps -= srcsize;
+            } // if
+        } // while
     } // else
 
     return(AL_TRUE);
