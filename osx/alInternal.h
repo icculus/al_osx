@@ -122,10 +122,17 @@ UInt32 __alMixStereo16(struct ALcontext_struct *ctx,
                        struct ALsource_struct *src,
                        Float32 *dst, UInt32 frames);
 
+UInt32 __alMixMono8_altivec(struct ALcontext_struct *ctx,
+                             struct ALbuffer_struct *buf,
+                             struct ALsource_struct *src,
+                             Float32 *dst, UInt32 frames);
+
 UInt32 __alMixMono16_altivec(struct ALcontext_struct *ctx,
                              struct ALbuffer_struct *buf,
                              struct ALsource_struct *src,
                              Float32 *dst, UInt32 frames);
+
+// !!! FIXME: No __alMixStereo8_altivec currently!
 
 UInt32 __alMixStereo16_altivec(struct ALcontext_struct *ctx,
                                struct ALbuffer_struct *buf,

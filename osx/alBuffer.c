@@ -658,7 +658,10 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
             buffer->bits = 8;
             buffer->channels = 1;
             buffer->compressed = AL_FALSE;
-            buffer->mixFunc = __alMixMono8;
+            if ((__alHasEnabledVectorUnit) && (channels == 2))
+                buffer->mixFunc = __alMixMono8_altivec;
+            else
+                buffer->mixFunc = __alMixMono8;
 		    break;
 
 		case AL_FORMAT_STEREO16:
