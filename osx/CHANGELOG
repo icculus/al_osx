@@ -3,6 +3,9 @@
  * CHANGELOG.
  */
 
+10252003 - Put in crappy arbitrary upsampling code for mono8 and mono16...
+           the previous version was piddling over memory. These need to be
+           fixed properly, still.
 10202003 - Added Altivec mono8 mixer. Mono16 and Mono8 mixers now never fall
            back to scalar version unless absolutely forced to, for notable
            speed boost. Average mono8 and mono16 mixing time in ut2003 is
