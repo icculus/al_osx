@@ -1,0 +1,14 @@
+
+/*
+ * CHANGELOG.
+ */
+
+10132003 - Makefile should now favor internal Ogg Vorbis headers over those
+           installed system-wide.
+10122003 - Initial posting on icculus.org.
+
+--ryan. (icculus@clutteredmind.org)
+
+/* end of CHANGELOG ... */
+
+
