@@ -111,12 +111,16 @@ ALAPI ALvoid ALAPIENTRY alGenBuffers(ALsizei n, ALuint *buffers)
 	// check if there're enough buffers available...
 	for (i = 0, buf = ctx->buffers; i < AL_MAXBUFFERS; i++, buf++)
 	{
-		if (!buf->inUse)
-			iCount++;
+        if (!buf->inUse)
+        {
+            iCount++;
+            if (iCount >= n)
+                break;
+        } // if
 	} // for
 	
 	if (iCount < n)
-		__alSetError(AL_INVALID_VALUE);
+		__alSetError(AL_OUT_OF_MEMORY);  // !!! FIXME: Better error?
     else
 	{
 		iCount = 0;
