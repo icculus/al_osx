@@ -269,8 +269,8 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
         __alCalculateSourceParameters(ctx, src, &Pitch, &Panning, &Volume);
     	Panningx2 = Panning * 2.0f;
     	MonoGain = FULL_VOLUME * Volume;
-	    src->CalcGainLeft = MonoGain * (2.0f - Panningx2);
-	    src->CalcGainRight = MonoGain * Panningx2;
+	    src->CalcGainLeft = MonoGain * Panningx2;
+	    src->CalcGainRight = MonoGain * (2.0f - Panningx2);
     } // if
 } // __alRecalcMonoSource
 
