@@ -3,6 +3,31 @@
  * CHANGELOG.
  */
 
+10262003 - Replaced arbitrary upsamplers with something based on Bresenham's
+           line drawing algorithm...you can think of the audio buffers like
+           the X and Y points on a line: sample the same point in the source
+           buffer to incrementing points in the destination buffer as you
+           would do a run length across the X axis, and move ahead one sample
+           in the source buffer every time you would increment up the Y axis
+           to start a new run length. Works pretty well between two arbitrary
+           sample rates (8000 -> 44100 in my test), and is totally integer,
+           so it's very fast...could be faster if I take the branching out of
+           the loop, though. We now keep track of an array of pointers to
+           playing (and potentially playing) sources so that __alcMixContext()
+           doesn't have to iterate over an array of sources, which thrashes
+           the CPU cache for no good reason; now we only need to move sources
+           into the cache if there's a chance they'll need processing during
+           a given callback, and if they have been stopped (or complete
+           processing), __alcMixContext() removes them from the array. Net
+           result is that __alcMixContext() runs about 3 times faster (0.1%
+           of the CPU instead of 0.3% in ut2003), but adds a bit of complexity
+           to the code. Similar optimizations were done to __alcMixDevice()
+           (formerly known as __alcDeviceFillingProc()). Other cleanups and
+           optimizations. Made a first attempt at playing with vec_dst in the
+           Altivec mixers, but the results were negligible for what will
+           prove to add more complications due to G5 architecture changes.
+           It's probably best to leave this alone, so the code is there in
+           the mono16 mixer, but commented out.
 10252003 - Put in crappy arbitrary upsampling code for mono8 and mono16...
            the previous version was piddling over memory. These need to be
            fixed properly, still.

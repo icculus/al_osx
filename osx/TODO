@@ -17,6 +17,7 @@
   unaligned output at start of buffers, so we can avoid ever falling into a
   completely scalar mixing path. See mono mixers for reference.
 - Altivec mixer for stereo8 is missing.
+- Arbitrary downsampling is probably broken.
 
 // end of TODO ...
 
