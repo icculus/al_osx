@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: channel mapping 0 implementation
- last mod: $Id: mapping0.c,v 1.1 2003/10/12 23:51:40 root Exp $
+ last mod: $Id: mapping0.c,v 1.2 2003/10/20 03:26:15 icculus Exp $
 
  ********************************************************************/
 
@@ -673,7 +673,7 @@ static int mapping0_inverse(vorbis_block *vb,vorbis_info_mapping *l){
       nonzero[i]=1;
     else
       nonzero[i]=0;      
-    //memset(vb->pcm[i],0,sizeof(*vb->pcm[i])*n/2);
+    memset(vb->pcm[i],0,(sizeof(*vb->pcm[i])*n)>>1);
   }
 
   /* channel coupling can 'dirty' the nonzero listing */
