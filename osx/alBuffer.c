@@ -235,7 +235,6 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
     register SInt32 lastSampR = ((SInt32) src[1]) - 128;
     register SInt32 sampL;
     register SInt32 sampR;
-    register int maxincr;
 
     // resample to device frequency...
 
@@ -287,7 +286,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
             #if 0 // broken
             register SInt32 linear_counter;
             register int incr;
-            maxincr = (int) ratio;
+            register int maxincr = (int) ratio;
             while (dst != max)
             {
                 sampL = ((SInt32) src[0])-128;
@@ -305,6 +304,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
             #else
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
+            // !!! FIXME: Replace with "run lengths".
             register int dstsize = buf->allocatedSpace;
             register int eps = 0;
             size -= 4;  // fudge factor.
@@ -332,7 +332,8 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
 
     else  // downsampling
     {
-        maxincr = (((int) ratio) << 1);
+        #if 0
+        register int maxincr = (((int) ratio) << 1);
 
         while (dst != max)
         {
@@ -345,6 +346,32 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
             lastSampR = sampR;
             dst += 2;
         } // while
+        #else
+        // Arbitrary downsampling based on Bresenham's line algorithm.
+        // !!! FIXME: Needs better interpolation.
+        // !!! FIXME: Replace with "run lengths".
+        register int dstsize = buf->allocatedSpace;
+        register int eps = 0;
+        size -= 4;  // fudge factor.
+        lastSampL = sampL = (SInt32) src[0];
+        lastSampR = sampR = (SInt32) src[1];
+        while (dst != max)
+        {
+            src += 2;
+            eps += dstsize;
+            if ((eps << 1) >= size)
+            {
+                dst[0] = sampL;
+                dst[1] = sampR;
+                dst += 2;
+                sampL = (src[0] + lastSampL) >> 1;
+                sampR = (src[1] + lastSampR) >> 1;
+                lastSampL = sampL;
+                lastSampR = sampR;
+                eps -= size;
+            } // if
+        } // while
+        #endif
     } // else
 
     return(AL_TRUE);
@@ -364,7 +391,6 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
     register SInt32 lastSampR = (SInt32) src[1];
     register SInt32 sampL;
     register SInt32 sampR;
-    register int maxincr;
 
     // resample to device frequency...
 
@@ -415,7 +441,7 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
             #if 0  // broken
             register SInt32 linear_counter;
             register int incr;
-            maxincr = (int) ratio;
+            register int maxincr = (int) ratio;
             while (dst != max)
             {
                 sampL = (SInt32) src[0];
@@ -433,6 +459,7 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
             #else
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
+            // !!! FIXME: Replace with "run lengths".
             register int dstsize = buf->allocatedSpace;
             register int eps = 0;
             size -= 8;  // fudge factor.
@@ -460,7 +487,8 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
 
     else  // downsampling
     {
-        maxincr = (((int) ratio) << 1);
+        #if 0
+        register int maxincr = (((int) ratio) << 1);
 
         while (dst != max)
         {
@@ -473,6 +501,32 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
             lastSampR = sampR;
             dst += 2;
         } // while
+        #else
+        // Arbitrary downsampling based on Bresenham's line algorithm.
+        // !!! FIXME: Needs better interpolation.
+        // !!! FIXME: Replace with "run lengths".
+        register int dstsize = buf->allocatedSpace;
+        register int eps = 0;
+        size -= 8;  // fudge factor.
+        lastSampL = sampL = (SInt32) src[0];
+        lastSampR = sampR = (SInt32) src[1];
+        while (dst != max)
+        {
+            src += 2;
+            eps += dstsize;
+            if ((eps << 1) >= size)
+            {
+                dst[0] = sampL;
+                dst[1] = sampR;
+                dst += 2;
+                sampL = (src[0] + lastSampL) >> 1;
+                sampR = (src[1] + lastSampR) >> 1;
+                lastSampL = sampL;
+                lastSampR = sampR;
+                eps -= size;
+            } // if
+        } // while
+        #endif
     } // else
 
     return(AL_TRUE);
@@ -544,7 +598,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             #if 0  // broken!
             register SInt32 linear_counter;
             register int incr;
-            maxincr = (int) ratio;
+            register int maxincr = (int) ratio;
             while (dst != max)
             {
                 samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
@@ -569,6 +623,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             #else
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
+            // !!! FIXME: Replace with "run lengths".
             register int dstsize = buf->allocatedSpace;
             register int eps = 0;
             size -= 2;  // fudge factor.
@@ -592,6 +647,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
 
     else  // downsampling
     {
+        #if 0
         register float pos = 0.0f;  // !!! FIXME: SLOW!
         while (dst != max)
         {
@@ -601,6 +657,28 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             lastSamp = samp;
             dst++;
         } // while
+        #else
+        // Arbitrary downsampling based on Bresenham's line algorithm.
+        // !!! FIXME: Needs better interpolation.
+        // !!! FIXME: Replace with "run lengths".
+        register int dstsize = buf->allocatedSpace;
+        register int eps = 0;
+        size -= 2;  // fudge factor.
+        lastSamp = samp = (SInt32) *src;
+        while (dst != max)
+        {
+            src++;
+            eps += dstsize;
+            if ((eps << 1) >= size)
+            {
+                *dst = samp;
+                dst++;
+                samp = (*src + lastSamp) >> 1;
+                lastSamp = samp;
+                eps -= size;
+            } // if
+        } // while
+        #endif
     } // else
 
     return(AL_TRUE);
@@ -658,7 +736,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             #if 0  // broken!
             register SInt32 linear_counter;
             register int incr;
-            maxincr = (int) ratio;
+            register int maxincr = (int) ratio;
             while (dst != max)
             {
                 samp = (SInt32) *src;
@@ -683,6 +761,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             #else
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
+            // !!! FIXME: Replace with "run lengths".
             register int dstsize = buf->allocatedSpace;
             register int eps = 0;
             size -= 4;  // fudge factor.
@@ -706,6 +785,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
 
     else  // downsampling
     {
+        #if 0
         register float pos = 0.0f;  // !!! FIXME: SLOW!
         while (dst != max)
         {
@@ -715,6 +795,28 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             lastSamp = samp;
             dst++;
         } // while
+        #else
+        // Arbitrary downsampling based on Bresenham's line algorithm.
+        // !!! FIXME: Needs better interpolation.
+        // !!! FIXME: Replace with "run lengths".
+        register int dstsize = buf->allocatedSpace;
+        register int eps = 0;
+        size -= 4;  // fudge factor.
+        lastSamp = samp = (SInt32) *src;
+        while (dst != max)
+        {
+            src++;
+            eps += dstsize;
+            if ((eps << 1) >= size)
+            {
+                *dst = samp;
+                dst++;
+                samp = (*src + lastSamp) >> 1;
+                lastSamp = samp;
+                eps -= size;
+            } // if
+        } // while
+        #endif
     } // else
 
     return(AL_TRUE);
