@@ -269,6 +269,22 @@ typedef struct ALdevice_struct
 
 
 // other stuff...
+
+static inline float recip_estimate(float x)
+{
+#if MACOSX
+    __asm__ __volatile__ (
+        "fres %0, %1  \n\t"
+            : "=f" (x) : "f" (x)
+    );
+    return(x);
+#else
+    return(1.0f / x);
+#endif
+}
+
+#define EPSILON_EQUAL(x, y) ( ((x) >= ((y)-0.0000001)) && ((x) <= ((y)+0.0000001)) )
+
 ALvoid __alSetError(ALenum err);
 ALboolean __alDetectVectorUnit(ALvoid);
 ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src);
