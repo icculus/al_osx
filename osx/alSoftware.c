@@ -407,6 +407,12 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
         CLAMP(src->channelGain0, 0.0f, 1.0f);
         CLAMP(src->channelGain1, 0.0f, 1.0f);
     } // if
+
+    else if (ctx->device->speakerConfig == SPKCFG_POSATTENUATION)
+    {
+        assert(0); // !!! FIXME
+    } // else if
+
     else
     {
         #if USE_VBAP

@@ -26,8 +26,7 @@
  * ---
  *
  * Set "USE_VBAP" to "false" in the makefile to disable code that falls under
- * this copyright. Turning off VBAP also disables ALC_EXT_speaker_attrs and
- * reduces audio rendering to 2-channel, stereo panning.
+ * this copyright.
  */
 
 #if !USE_VBAP
@@ -204,16 +203,22 @@ ALvoid __alcTriangulateSpeakers(ALdevice *device)
         if (i == max)  // all speakers on plane with physical listener?
             device->speakerConfig = SPKCFG_VBAP_2D;  // fast path.
 
-        #else
+        #elif 0
         device->speakerConfig = SPKCFG_VBAP_2D;  // fast path.
+        #else
+        device->speakerConfig = SPKCFG_POSATTENUATION;  // fast path.
         #endif
     } // else
 
+    // !!! FIXME: convert speaker positions to azimuth/elevation!
+    #error this is broken without azi/ele conversion!
+    assert(0);
 
     // Group speakers into pairs (2D) or triangles (3D) based on position.
     switch (device->speakerConfig)
     {
         case SPKCFG_STDSTEREO:
+        case SPKCFG_POSATTENUATION:
             break;  // nothing to do here in this case.
 
         case SPKCFG_VBAP_2D:

@@ -35,6 +35,7 @@
 - The ring buffer is crap.
 - There's a lot of room for optimization in the capture callback.
 - There's a lot of untested codepaths in the capture extension.
+- 80-column source code cleanup.
 
 // end of TODO ...
 

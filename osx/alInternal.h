@@ -346,6 +346,7 @@ ALvoid __alUngrabContext(ALcontext *ctx);
 typedef enum
 {
     SPKCFG_STDSTEREO, // 2 speakers, left and right. Regular stereo output.
+    SPKCFG_POSATTENUATION, // 2D position attenuation
     #if USE_VBAP
     SPKCFG_VBAP_2D,   // >= 2 speakers around listener at elevation 0.
     SPKCFG_VBAP_3D,   // >= 3 speakers around listener at arbitrary positions.
@@ -380,7 +381,7 @@ typedef struct ALdevice_struct
     ALfloat speakergains[AL_MAXSPEAKERS];
     ALfloat speakerazimuths[AL_MAXSPEAKERS];
     ALfloat speakerelevations[AL_MAXSPEAKERS];
-ALfloat speakerpos[AL_MAXSPEAKERS*3]; // x, y, z
+    ALfloat speakerpos[AL_MAXSPEAKERS*3]; // x, y, z  ... internal use only.
 
     #if USE_VBAP
     ALsizei vbapgroups;  // number of speaker triangles/pairs.
@@ -454,19 +455,23 @@ ALboolean __alIsExtensionPresent(const ALbyte *extName, ALboolean isALC);
 
 
 #if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
-  ALCAPI ALvoid ALCAPIENTRY alcGetSpeakerfv(ALCdevice *dev, ALuint spk, ALenum param, ALfloat *v);
-  ALCAPI ALvoid ALCAPIENTRY alcSpeakerfv(ALCdevice *dev, ALuint spk, ALfloat *v);
+  ALCAPI ALvoid ALCAPIENTRY alcGetSpeakerfv(ALCdevice *dev, ALuint spk,
+                                            ALenum param, ALfloat *v);
+  ALCAPI ALvoid ALCAPIENTRY alcSpeakerfv(ALCdevice *dev, ALuint spk,
+                                         ALfloat *v);
+  ALCAPI ALvoid ALCAPIENTRY alcSpeakerf(ALCdevice *dev, ALuint spk, ALfloat x);
+
   #ifndef ALC_SPEAKER_COUNT
-    #define ALC_SPEAKER_COUNT      0x1032  // alcGetInteger
+    #define ALC_SPEAKER_COUNT       0x1032  // alcGetInteger
   #endif
   #ifndef ALC_SPEAKER_GAIN
-    #define ALC_SPEAKER_GAIN       0x1033  // alcSpeakerfv
+    #define ALC_SPEAKER_GAIN        0x1033  // alcSpeakerf
   #endif
   #ifndef ALC_SPEAKER_AZIMUTH
-    #define ALC_SPEAKER_AZIMUTH    0x1034  // alcSpeakerfv
+    #define ALC_SPEAKER_AZIMUTH     0x1034  // alcSpeakerf
   #endif
   #ifndef ALC_SPEAKER_ELEVATION
-    #define ALC_SPEAKER_ELEVATION  0x1035  // alcSpeakerfv
+    #define ALC_SPEAKER_ELEVATION   0x1035  // alcSpeakerf
   #endif
 #endif
 

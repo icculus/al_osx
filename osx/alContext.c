@@ -188,7 +188,7 @@ ALCAPI ALvoid ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsizei 
                 if (size < sizeof (ALint))
                     __alcSetError((ALdevice *) dev, ALC_INVALID_VALUE);
                 else
-                    *data = dev->speakers;
+                    *data = dev->speakers; // if capture device, this is 0.
                 break;
         #endif
 
@@ -381,6 +381,7 @@ ALCAPI ALvoid  * ALCAPIENTRY alcGetProcAddress(ALCdevice *device, ALubyte *funcN
 
     #if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
     PROC_ADDRESS(alcGetSpeakerfv);
+    PROC_ADDRESS(alcSpeakerf);
     PROC_ADDRESS(alcSpeakerfv);
     #endif
 
@@ -512,6 +513,13 @@ ALCAPI ALvoid ALCAPIENTRY alcSpeakerfv(ALCdevice *dev, ALuint spk, ALfloat *v)
         } // switch
     } // else
 } // alcSpeakerfv
+
+
+ALCAPI ALvoid ALCAPIENTRY alcSpeakerf(ALCdevice *dev, ALuint spk, ALfloat x)
+{
+    ALfloat xyz[3] = { x, 0.0f, 0.0f };
+    alcSpeakerfv(dev, spk, xyz);
+} // alcSpeakerf
 #endif
 
 
@@ -632,6 +640,64 @@ ALCAPI ALvoid ALCAPIENTRY alcCaptureSamples(ALCdevice *device, ALvoid *buf,
     __alUngrabDevice(dev);
 } // alcCaptureSamples
 #endif
+
+
+static ALvoid __alcSetSpeakerDefaults(ALdevice *dev)
+{
+    UInt32 i;
+
+    dev->speakerConfig = SPKCFG_STDSTEREO;
+    if (dev->speakers > 2)
+        dev->speakerConfig = SPKCFG_POSATTENUATION;
+
+    if (dev->speakers == 0)  // may be capture device, etc...
+        return;
+
+    for (i = 0; i < dev->speakers; i++)  // fill in sane defaults...
+    {
+        dev->speakerazimuths[i] = 0.0f;
+        dev->speakerelevations[i] = 0.0f;
+        dev->speakergains[i] = 1.0f;
+        i++;
+    } // for
+
+    switch (dev->speakers)
+    {
+        case 1:
+            dev->speakerazimuths[0] = 0.0f;
+            break;
+
+        case 2:
+            dev->speakerazimuths[0] = -90.0f;
+            dev->speakerazimuths[1] = 90.0f;
+            break;
+
+        case 8:  // 7.1 setup
+            dev->speakerazimuths[0] = -35.0f;
+            dev->speakerazimuths[1] = 35.0f;
+            dev->speakerazimuths[2] = -80.0f;
+            dev->speakerazimuths[3] = 80.0f;
+            dev->speakerazimuths[4] = -125.0f;
+            dev->speakerazimuths[5] = 125.0f;
+            dev->speakerazimuths[6] = -170.0f;
+            dev->speakerazimuths[7] = 170.0f;
+            break;
+
+        case 4:  // Quadiphonic  !!! FIXME
+        case 5:  // 4.1 setup.   !!! FIXME
+        case 6:  // 5.1 setup.   !!! FIXME
+        default:
+            assert(0);
+            break;
+    } // switch
+
+    // !!! FIXME: Override default speaker attributes with config file.
+
+    #if USE_VBAP
+    __alcTriangulateSpeakers(dev);
+    #endif
+} // __alcGetDefaultSpeakerPos
+
 
 //----------------------------------------------------------------------------
 // With the exception of some defines in the headers, I've tried to keep all
@@ -1039,7 +1105,6 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
     __alUngrabContext(ctx);
 } // __alcMixContext
 
-
 #if SUPPORTS_ALC_EXT_CAPTURE
 static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  inNow, const AudioBufferList*  inInputData, const AudioTimeStamp*  inInputTime, AudioBufferList*  outOutputData, const AudioTimeStamp* inOutputTime, void* inClientData)
 {
@@ -1049,14 +1114,16 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
     ALsizei samples = 0;
     ALsizei resampsize = 0;
     ALboolean doConvert = AL_TRUE;
+    ALsizei chans = dev->streamFormat.mChannelsPerFrame;
 
     assert(dev->isInputDevice);
+    assert(dev->speakers == 0);
     assert(dev->capture.started);
 
     if (!inInputData)
         return kAudioHardwareNoError;
 
-    samples = inInputData->mBuffers[0].mDataByteSize / (sizeof (Float32) * dev->speakers);
+    samples = inInputData->mBuffers[0].mDataByteSize / (sizeof(Float32)*chans);
     if ((ALint) dev->streamFormat.mSampleRate == dev->capture.freq)
     {
         resampled = inInputData->mBuffers[0].mData;
@@ -1066,7 +1133,7 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
     {
     	ALfloat ratio = ((ALfloat) dev->capture.freq) / ((ALfloat) dev->streamFormat.mSampleRate);
         samples = (ALsizei) (((ALfloat) samples) * ratio);
-        resampsize = samples * (sizeof (Float32) * dev->speakers);
+        resampsize = samples * (sizeof (Float32) * chans);
 
         // !!! FIXME: Allocate this in alcCaptureOpenDevice()!
         if (dev->capture.resampled == NULL)
@@ -1079,7 +1146,7 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
 
         resampled = (Float32 *) dev->capture.resampled;
         // !!! FIXME: Handle > 2 channel?
-        if (dev->speakers == 1)
+        if (chans == 1)
         {
             __alResampleMonoFloat32(inInputData->mBuffers[0].mData,
                                     inInputData->mBuffers[0].mDataByteSize,
@@ -1094,9 +1161,9 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
     } // else
 
     #if SUPPORTS_AL_EXT_FLOAT32
-    if (dev->speakers == 1)
+    if (chans == 1)
         doConvert = (dev->capture.format != AL_FORMAT_MONO_FLOAT32);
-    else if (dev->speakers == 2)
+    else if (chans == 2)
         doConvert = (dev->capture.format != AL_FORMAT_STEREO_FLOAT32);
     #endif
 
@@ -1114,7 +1181,7 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
         } // if
         converted = dev->capture.converted;
 
-        if (dev->speakers == 1)
+        if (chans == 1)
         {
             rc = __alConvertFromMonoFloat32(resampled, converted,
                                             dev->capture.format, samples);
@@ -1192,114 +1259,6 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
     __alUngrabDevice(dev);
     return kAudioHardwareNoError;
 } // __alcMixDevice
-
-
-static ALvoid __alcSetSpeakerDefaults(ALdevice *dev)
-{
-    UInt32 i = 0;
-
-    dev->speakerConfig = SPKCFG_STDSTEREO;  // sane default.
-
-/* !!! FIXME: Coerce speaker positions out of CoreAudio.
-	AudioDeviceID device = dev->device;
-    AudioChannelLayout *layout;
-	Boolean	writable;
-    OSStatus error;
-    UInt32 count;
-
-    dev->speakerConfig = SPKCFG_STDSTEREO;  // sane default.
-
-    error = AudioDeviceGetPropertyInfo(device, 0, 0,
-                            kAudioDevicePropertyPreferredChannelLayout,
-                            &count, &writable);
-
-    if (error != kAudioHardwareNoError)
-        count = 0;
-    else
-    {
-        layout = (AudioChannelLayout *) alloca(count);
-        error = AudioDeviceGetProperty(device, 0, 0,
-                            kAudioDevicePropertyPreferredChannelLayout,
-                            &count, layout);
-
-        if (error == kAudioHardwareNoError)
-            count = 0;
-        else
-        {
-            count = layout->mNumberChannelDescriptions;
-            if (count > dev->speakers)
-                count = dev->speakers;
-        } // else
-    } // else
-
-    for (i = 0; i < count; i++)
-    {
-        UInt32 chanFlags = layout->mChannelDescriptions[i].mChannelFlags;
-        Float32 *coreAudio = layout->mChannelDescriptions[i].mCoordinates;
-        dev->speakergains[i] = 1.0f;
-
-        if (chanFlags & kAudioChannelFlags_RectangularCoordinates)
-        {
-            // CoreAudio appears to use a right-handed coordinate system,
-            //  like OpenAL, but specifies it as X, Z, Y, not X, Y, Z.
-            openAL[0] = coreAudio[0];
-            openAL[1] = coreAudio[2];
-            openAL[2] = coreAudio[1];
-        } // if
-
-        else if (chanFlags & kAudioChannelFlags_SphericalCoordinates)
-        {
-            //0 == azimuth
-            //1 == elevation
-            //2 == distance
-            assert(0);   // !!! FIXME: write me!
-        } // if
-
-        else
-        {
-            // !!! FIXME: Sane position defaults.
-        } // else
-
-        openAL += 3;
-        azi += aziincr;
-    } // for
-*/
-
-    while (i < dev->speakers)   // fill in sane defaults if needed.
-    {
-        dev->speakerelevations[i] = 0.0f;
-        dev->speakergains[i] = 1.0f;
-        i++;
-    } // while
-    if (dev->speakers == 1)
-        dev->speakerazimuths[0] = 0.0f;
-    else if (dev->speakers == 2)
-    {
-        dev->speakerazimuths[0] = -90.0f;
-        dev->speakerazimuths[1] = 90.0f;
-    } // else if
-    else if (dev->speakers == 8)
-    {
-        dev->speakerazimuths[0] = -35.0f;
-        dev->speakerazimuths[1] = 35.0f;
-        dev->speakerazimuths[2] = -80.0f;
-        dev->speakerazimuths[3] = 80.0f;
-        dev->speakerazimuths[4] = -125.0f;
-        dev->speakerazimuths[5] = 125.0f;
-        dev->speakerazimuths[6] = -170.0f;
-        dev->speakerazimuths[7] = 170.0f;
-    }
-    else
-    {
-        assert(0);
-    }
-
-    // !!! FIXME: Override default speaker attributes with config file.
-
-    #if USE_VBAP
-    __alcTriangulateSpeakers(dev);
-    #endif
-} // __alcGetDefaultSpeakerPos
 
 
 static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
@@ -1380,9 +1339,14 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
 
     memcpy(&retval->streamFormat, &streamFormat, sizeof (streamFormat));
     retval->device = device;
-    retval->speakers = streamFormat.mChannelsPerFrame;
-    if (retval->speakers > AL_MAXSPEAKERS)
-        retval->speakers = AL_MAXSPEAKERS;
+    if (isInput)
+        retval->speakers = 0;
+    else
+    {
+        retval->speakers = streamFormat.mChannelsPerFrame;
+        if (retval->speakers > AL_MAXSPEAKERS)
+            retval->speakers = AL_MAXSPEAKERS;
+    } // else
 
     // Set up default speaker attributes.
     __alcSetSpeakerDefaults(retval);

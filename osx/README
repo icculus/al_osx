@@ -15,22 +15,26 @@ apart from the standard openal.org Mac implementation:
   for G3 and older systems.
 - Is designed with multithreading in mind...should be 100% thread safe, and
   can take advantage of multiple CPU systems internally.
+- Supports more-than-two speaker configurations...for example, you can
+  install an M-Audio Revolution 7.1 card and surround yourself with speakers;
+  audio sources rendered through OpenAL will correctly use speakers, so that
+  sounds played behind the listener will literally play behind you, too.
 - Can handle multiple contexts on multiple devices, all running in parallel.
 - Supports the AL_ENUMERATION_EXT extension for device enumeration.
 - Supports AL_EXT_vorbis for direct playback of Ogg Vorbis audio; the Vorbis
   decoder is a highly optimized and Altivec-enabled fork of xiph.org's
   libvorbis-1.0...using this extension can be significantly faster and
   easier for the application than using a stock libvorbis and buffer queueing.
-- Codebase is designed to be maintainable and flexible. Adding new data
-  types (as demostrated by AL_EXT_vorbis) is fairly easy.
+- Supports ALC_EXT_capture, for recording audio from a microphone, etc.
+- Supports ALC_EXT_speaker_attrs, for fine-tuned control of physical
+  loudspeakers in 3D space.
+- Supports AL_EXT_float32, for easier migration from CoreAudio to OpenAL.
 - Supports AL_EXT_buffer_offset, which is basically an extended form of
   AL_BYTE_LOKI, for when you have to get down and dirty at the lowlevel of
   audio playback.
+- Codebase is designed to be maintainable and flexible. Adding new data
+  types (as demostrated by AL_EXT_vorbis) is fairly easy.
 - Supports IBM's G5 compiler.
-- Supports more-than-two speaker configurations...for example, you can
-  install an M-Audio Revolution 7.1 card and surround yourself with speakers;
-  audio sources rendered through OpenAL will correctly use speakers, so that
-  sounds played behind the listener will literally play behind you, too.
 
 This implementation is fairly robust, but in many ways can still be considered
 a "mini-AL" library...it is enough to play UT2003 well, but some features of a

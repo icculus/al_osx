@@ -22,19 +22,19 @@
 #
 # If you don't already know what USE_CCACHE does, set it to "false".
 #
-# If you don't already know what USE_VBAP does, set it to "true".
+# If you don't already know what USE_VBAP does, set it to "false".
 #
 # If you don't already know what USE_IBM_COMPILER does, set it to "false".
 #
 # If you don't already know what the various SUPPORT_* things do,
-#  set them all to "true".
+#  leave them alone.
 
 OPTIMIZE := false
 USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := true
 USE_IBM_COMPILER := false
-USE_VBAP := true
+USE_VBAP := false
 SUPPORT_ALC_ENUMERATION_EXT := true
 SUPPORT_ALC_EXT_CAPTURE := true
 SUPPORT_ALC_EXT_SPEAKER_ATTRS := false

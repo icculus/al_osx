@@ -3,6 +3,14 @@
  * CHANGELOG.
  */
 
+01302004 - Started ripping out VBAP.  :(  I'm not pleased with the results of
+           VBAP2D...VBAP3D might be useful still, though. Made some changes
+           to __alcSetSpeakerDefaults() and moved it above the CoreAudio
+           section of alContext.c, since it doesn't have any Mac-specific
+           code now. Experimenting with (for lack of a better term) "position
+           attenuation"...it's something like stereo panning in 2D instead of
+           1D. ALdevice->speakers is now zero for capture devices (so
+           ALC_SPEAKER_COUNT is sane in this case). Added alcSpeakerf().
 01252004 - Fixed resamplers (ratio was backwards). ALC_EXT_capture work...
            I am stunned at my complete inability to create a functional
            ring buffer. Got capture to work for the first time! VoIP, here
