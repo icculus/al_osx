@@ -411,8 +411,6 @@ ALAPI ALvoid ALAPIENTRY alSource3f (ALuint source, ALenum pname, ALfloat v1, ALf
 ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
 {
     ALsource *src;
-    ALbuffer *buf;
-    ALuint tmp;
     register ALboolean needsRecalc = AL_FALSE;
     register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
 
@@ -465,7 +463,8 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
 
             #if SUPPORTS_AL_EXT_BUFFER_OFFSET
             case AL_BUFFER_OFFSET_EXT:
-                buf = __alGetPlayingBuffer(ctx, src);
+            {
+                ALbuffer *buf = __alGetPlayingBuffer(ctx, src);
                 if (buf == NULL)
                     __alSetError(AL_ILLEGAL_COMMAND);
                 else
@@ -474,11 +473,12 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
                         __alSetError(AL_INVALID_VALUE);
                     else
                     {
-                        tmp = buf->channels * (buf->bits / 8);
+                        ALuint tmp = buf->channels * (buf->bits / 8);
                         src->bufferReadIndex = value / tmp;
                     } // else
                 } // else
                 break;
+            } // case
             #endif
 
             default:
@@ -595,8 +595,6 @@ ALAPI ALvoid ALAPIENTRY alGetSourcefv (ALuint source, ALenum pname, ALfloat *val
 ALAPI ALvoid ALAPIENTRY alGetSourcei (ALuint source, ALenum pname, ALint *value)
 {
     ALsource *src;
-    ALbuffer *buf;
-    ALuint tmp;
     register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
 
     if (ctx != NULL)
@@ -634,7 +632,8 @@ ALAPI ALvoid ALAPIENTRY alGetSourcei (ALuint source, ALenum pname, ALint *value)
 
             #if SUPPORTS_AL_EXT_BUFFER_OFFSET
             case AL_BUFFER_OFFSET_EXT:
-                buf = __alGetPlayingBuffer(ctx, src);
+            {
+                ALbuffer *buf = __alGetPlayingBuffer(ctx, src);
                 if (buf == NULL)
                 {
                     __alSetError(AL_ILLEGAL_COMMAND);
@@ -642,10 +641,11 @@ ALAPI ALvoid ALAPIENTRY alGetSourcei (ALuint source, ALenum pname, ALint *value)
                 } // if
                 else
                 {
-                    tmp = buf->channels * (buf->bits / 8);
+                    ALuint tmp = buf->channels * (buf->bits / 8);
                     *value = src->bufferReadIndex * tmp;
                 } // else
                 break;
+            } // case
             #endif
 
             default:
