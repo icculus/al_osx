@@ -1045,7 +1045,7 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
                 // new buffer in queue? Prepare it if needed.
                 if ((buf->prepareBuffer) && (src->bufferReadIndex == 0))
                 {
-                    if (!buf->prepareBuffer(src, buf))
+                    if (!buf->prepareBuffer(ctx, src, buf))
                     {
                         src->bufferPos++;  // oh well, skip it.
                         src->bufferReadIndex = 0;

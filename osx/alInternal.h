@@ -219,8 +219,8 @@ typedef struct ALbuffer_struct
 	ALsizei bits;
 	ALsizei channels;
     ALboolean compressed;
-    void *mixData;  // guaranteed to be 16-byte aligned.
-    void *mixUnalignedPtr;  // malloc() retval used to calculate mixData.
+    ALvoid *mixData;  // guaranteed to be 16-byte aligned.
+    ALvoid *mixUnalignedPtr;  // malloc() retval used to calculate mixData.
     ALboolean inUse;
     ALsizei allocatedSpace;
     __alMixFunc mixFunc;
@@ -230,11 +230,14 @@ typedef struct ALbuffer_struct
     // Called when a buffer is about to be played on a source.
     //  allocate source-instance data and store in src->opaque.
     // Return AL_FALSE on a fatal error, AL_TRUE on success.
-    ALboolean (*prepareBuffer)(struct ALsource_struct *, struct ALbuffer_struct *);
+    ALboolean (*prepareBuffer)(struct ALcontext_struct *,
+                               struct ALsource_struct *,
+                               struct ALbuffer_struct *);
 
     // called when source is done playing this buffer and isn't looping.
     //  Should free up source-instance data here.
-    ALvoid (*processedBuffer)(struct ALsource_struct *, struct ALbuffer_struct *);
+    ALvoid (*processedBuffer)(struct ALsource_struct *,
+                              struct ALbuffer_struct *);
 
     // called if a source is looping this buffer. Prepare to replay from
     //  start on next call to mixFunc.
