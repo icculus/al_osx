@@ -3,6 +3,8 @@
  * CHANGELOG.
  */
 
+10192003 - Minor fixes to the Vorbis decoder...some .oggs were suffering from
+           minor decoding defects due to some optimizations.
 10182003 - Fixed testqueueing.c to not eat whole CPU. alBufferData() now uses
            linear resampling when converting to device format (thanks, Joe!).
            Some other corrections and cleanups.
