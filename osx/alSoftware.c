@@ -385,6 +385,7 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
     if (CalcVolume > 1.0f)
         CalcVolume = 1.0f;
 
+    // !!! FIXME: Where the hell did this come from?
     //CalcVolume *= FULL_VOLUME;
 
     if (ctx->device->speakerConfig == SPKCFG_STDSTEREO)
