@@ -651,22 +651,22 @@ ALboolean __alResampleMono8(ALvoid *_src, ALsizei _srcsize,
 
     // resample to device frequency...
 
-    if (ratio > 1.0f)  // upsampling.
+    if (EPSILON_EQUAL(ratio, 1.0f)) // fast path for signed conversion.
     {
-        if (EPSILON_EQUAL(ratio, 1.0f)) // fast path for signed conversion.
+        while (dst != max)
         {
-            while (dst != max)
-            {
-                // !!! FIXME: Altivec!
-                // !!! FIXME: Do this at least 32 bits at a time.
-                samp = ((SInt32) *src) - 128; // -128 to convert to signed.
-                src++;
-                *dst = (SInt8) samp;
-                dst++;
-            } // while
-        } // if
+            // !!! FIXME: Altivec!
+            // !!! FIXME: Do this at least 32 bits at a time.
+            samp = ((SInt32) *src) - 128; // -128 to convert to signed.
+            src++;
+            *dst = (SInt8) samp;
+            dst++;
+        } // while
+    } // if
 
-        else if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
+    else if (ratio > 1.0f)  // upsampling.
+    {
+        if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
             {
@@ -784,7 +784,7 @@ ALboolean __alResampleMono8(ALvoid *_src, ALsizei _srcsize,
             {
                 *dst = samp;
                 dst++;
-                samp = (*src + lastSamp) >> 1;
+                samp = ( (((SInt32) *src) - 128) + lastSamp ) >> 1;
                 lastSamp = samp;
                 eps -= srcsize;
             } // if
