@@ -28,202 +28,252 @@
 // !!! FIXME: altivec this whole file. --ryan.
 
 
-#define FORCE_STD_SQRT 0
-
-// Square root stuff. Use faster, single precision versions.
-#if ((MACOSX) && (!FORCE_STD_SQRT))
-
-static Float32 __alSqrtUnknown(Float32 num);
-static Float32 (*__alSqrt)(Float32 num) = __alSqrtUnknown;
-
-
-static Float32 __alSqrtOpcode(Float32 num)
-{
-    register Float32 retval;
-
-    __asm__ __volatile__ (
-        "fsqrts %0, %1  \n\t"
-            : "=f" (retval) : "f" (num)
-    );
-
-    return(retval);
-} // __alSqrtOpcode
-
-
-// Compliments of Jeffrey Lim, in regards to something completely unrelated.
-//  Says him:
-//    "I did some testing, and the fsqrte is very inaccurate, as you said -
-//     but after 2 iterations of newton-raphson, it seems to be accurate to 1
-//     ULP of the answer provided by sqrt()".
-static Float32 __alSqrtRecipAndNewtonRaphson(Float32 num)
-{
-    register Float32 t1;
-    register Float32 t2;
-    register Float32 t3;
-    register Float32 hx;
-
-    if (num == 0.0f)
-        return(0.0f);
-
-    __asm__ __volatile__ (
-        "frsqrte %0, %1  \n\t"
-            : "=f" (t1) : "f" (num)
-    );
-
-    hx = num * 0.5f;
-    t2 = t1 * (1.5f - hx * t1 * t1);
-    t3 = t2 * (1.5f - hx * t2 * t2);
-
-    return(t3 * num);
-} // __alSqrtRecipAndNewtonRaphson
-
-
-
-// !!! FIXME: "6" is really gestaltPowerPCHas64BitSupport ... for now, this
-// !!! FIXME:  signifies all Macs with "fsqrts" ... the G5.
-#define __AL_GESTALT_HAS_FSQRTS 6
-
-// first call determines which sqrt() to use, after that it calls it directly.
-static Float32 __alSqrtUnknown(Float32 num)
-{
-    ALboolean hasFsqrtsOpcode = AL_FALSE;
-    long cpufeature = 0;
-    OSErr err = Gestalt(gestaltPowerPCProcessorFeatures, &cpufeature);
-    if (err == noErr)
-    {
-        if ((1 << __AL_GESTALT_HAS_FSQRTS) & cpufeature)
-            hasFsqrtsOpcode = AL_TRUE;
-    } // if
-
-    if (hasFsqrtsOpcode == AL_TRUE)
-        __alSqrt = __alSqrtOpcode;
-    else
-        __alSqrt = __alSqrtRecipAndNewtonRaphson;
-
-    return(__alSqrt(num));
-} // __alSqrtUnknown
-
+#if (MACOSX)
+#  define USE_G5_SQRT 0
+#  define FORCE_STD_SQRT 0
 #else
-#define __alSqrt(x) ((ALfloat) sqrt(x))  // portable and precise, but slower.
+#  define USE_G5_SQRT 0
+#  define FORCE_STD_SQRT 1
 #endif
 
-ALAPI ALvoid ALAPIENTRY alCrossproduct(ALfloat vector1[3],ALfloat vector2[3],ALfloat vector3[3])
+
+// Square root stuff. Use faster, single precision versions.
+#if FORCE_STD_SQRT
+#   define __alSqrt(x) ((ALfloat) sqrt(x))  // portable and precise, but slower.
+
+#elif USE_G5_SQRT   // Will crash on G4 or older systems if enabled.
+    static inline Float32 __alSqrt(Float32 num)
+    {
+        register Float32 retval;
+
+        __asm__ __volatile__ (
+            "fsqrts %0, %1  \n\t"
+                : "=f" (retval) : "f" (num)
+        );
+
+        return(retval);
+    } // __alSqrtOpcode
+
+#else
+    // Square root from reciprocal sqrt estimate opcode, plus newton-raphson.
+    // Compliments of Jeffrey Lim, in regards to something unrelated.
+    //  Says him:
+    //   "I did some testing, and the fsqrte is very inaccurate, as you said -
+    //    but after 2 iterations of newton-raphson, it seems to be accurate to
+    //     1 ULP of the answer provided by sqrt()".
+    static inline Float32 __alSqrt(Float32 num)
+    {
+        register Float32 t1;
+        register Float32 t2;
+        register Float32 t3;
+        register Float32 hx;
+
+        if (num == 0.0f)
+            return(0.0f);
+
+        __asm__ __volatile__ (
+            "frsqrte %0, %1  \n\t"
+                : "=f" (t1) : "f" (num)
+        );
+
+        hx = num * 0.5f;
+        t2 = t1 * (1.5f - hx * t1 * t1);
+        t3 = t2 * (1.5f - hx * t2 * t2);
+
+        return(t3 * num);
+    } // __alSqrtRecipAndNewtonRaphson
+#endif
+
+
+static inline ALvoid __alCrossproduct(ALvector vector1, ALvector vector2, ALvector vector3)
 {
-	vector3[0]=(vector1[1]*vector2[2]-vector1[2]*vector2[1]);
+    // !!! FIXME: vectorize?
+    vector3[0]=(vector1[1]*vector2[2]-vector1[2]*vector2[1]);
 	vector3[1]=(vector1[2]*vector2[0]-vector1[0]*vector2[2]);
-	vector3[2]=(vector1[0]*vector2[1]-vector1[1]*vector2[0]);
+    vector3[2]=(vector1[0]*vector2[1]-vector1[1]*vector2[0]);
 }
 
-ALAPI ALfloat ALAPIENTRY alDotproduct(ALfloat vector1[3],ALfloat vector2[3])
+static inline ALfloat __alDotproduct(ALvector vector1,ALvector vector2)
 {
-	return (vector1[0]*vector2[0]+vector1[1]*vector2[1]+vector1[2]*vector2[2]);
-}
+#if 1  // actually faster than Altivec version.
+    return (vector1[0]*vector2[0]+vector1[1]*vector2[1]+vector1[2]*vector2[2]);
+#else
+    register vector float zero = (vector float) vec_splat_u32(0);
+    register vector float v1 = vec_ld(0x00, vector1);
+    register vector float v2 = vec_ld(0x00, vector2);
 
-ALAPI ALvoid ALAPIENTRY alNormalize(ALfloat vector[3])
-{
-	ALfloat length;
-
-	length=(float)__alSqrt(alDotproduct(vector,vector));
-	vector[0]/=length;
-	vector[1]/=length;
-	vector[2]/=length;
-}
-
-ALAPI ALvoid ALAPIENTRY alMatrixVector(ALfloat matrix[3][3],ALfloat vector[3])
-{
-	ALfloat result[3];
-
-	result[0]=matrix[0][0]*vector[0]+matrix[0][1]*vector[1]+matrix[0][2]*vector[2];
-	result[1]=matrix[1][0]*vector[0]+matrix[1][1]*vector[1]+matrix[1][2]*vector[2];
-	result[2]=matrix[2][0]*vector[0]+matrix[2][1]*vector[1]+matrix[2][2]*vector[2];
-	//BlockMove(result, vector, sizeof(result));
-	memcpy(vector, result, sizeof(result));
+    union { vector float v; float f[4]; } swapper;
+    v1 = vec_madd(v1, v2, zero);
+    v2 = vec_add(v1, vec_sld(v1, v1, 4));
+    v2 = vec_add(v2, vec_sld(v1, v1, 8));
+    vec_st(v2, 0x00, &swapper.v);
+    return(swapper.f[0]);
+#endif
 }
 
 
-static ALvoid __alCalculateSourceParameters(ALcontext *ctx, ALsource *src, ALfloat *Pitch, ALfloat *Panning, ALfloat *Volume)
+static inline ALvoid __alNormalize(ALvector v)
 {
-    ALfloat Position[3],Velocity[3],Distance;
-    ALfloat SourceListenerDir[3];
-	ALfloat U[3],V[3],N[3];
+#if 1
+	ALfloat length = recip_estimate((float)__alSqrt(__alDotproduct(v, v)));
+	v[0] *= length;
+	v[1] *= length;
+	v[2] *= length;
+#else
+	ALfloat length = (float)__alSqrt(__alDotproduct(v, v));
+	v[0] /= length;
+	v[1] /= length;
+	v[2] /= length;
+#endif
+} // __alNormalize
+
+
+static inline ALvoid __alVectorAssign(ALvector v1, ALvector v2)
+{
+#if 1  // slower, but doesn't crash on G3.
+    v1[0] = v2[0];
+    v1[1] = v2[1];
+    v1[2] = v2[2];
+#else
+    register vector float v = vec_ld(0x00, v2);
+    vec_st(v, 0x00, v1);
+#endif
+
+} // __alVectorAssign
+
+
+static inline ALvoid __alVectorSubtract(ALvector v1, ALvector v2)
+{
+#if 1  // slower, but doesn't crash on G3.
+    v1[0] -= v2[0];
+    v1[1] -= v2[1];
+    v1[2] -= v2[2];
+#else
+    register vector float vec1 = vec_ld(0x00, v1);
+    register vector float vec2 = vec_ld(0x00, v2);
+    vec1 = vec_sub(vec1, vec2);
+    vec_st(vec1, 0x00, v1);
+#endif
+} // __alVectorSubtract
+
+
+static inline ALvoid __alMatrixVector(ALfloat matrix[3][3], ALvector v)
+{
+	ALvector result;
+
+	result[0]=matrix[0][0]*v[0]+matrix[0][1]*v[1]+matrix[0][2]*v[2];
+	result[1]=matrix[1][0]*v[0]+matrix[1][1]*v[1]+matrix[1][2]*v[2];
+	result[2]=matrix[2][0]*v[0]+matrix[2][1]*v[1]+matrix[2][2]*v[2];
+
+    __alVectorAssign(v, result);
+}
+
+
+ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
+{
+#if DO_DOPPLER
+    ALvector SourceListenerDir;
+#endif
+    ALvector Position;
+    ALvector Velocity;
+	ALvector U;
+	ALvector V;
+	ALvector N;
 	ALfloat Matrix[3][3];
+    ALfloat Distance;
 	ALfloat minGain, maxGain;
-    ALfloat CalcPitch = src->pitch;
-    ALfloat CalcVolume = src->gain;
-    ALenum distanceModel = ctx->distanceModel;
-    ALlistener *listener = &ctx->listener;
+    ALfloat CalcVolume;
+    ALenum distanceModel;
+    ALlistener *listener;
+
+    // Only process if some source attribute has changed.
+    if (!src->needsRecalculation)
+        return;
+
+    src->needsRecalculation = AL_FALSE;
+
+    distanceModel = ctx->distanceModel;
+    listener = &ctx->listener;
 
 	// Convert source position to listener's coordinate system
     minGain = src->minGain;
     maxGain = src->maxGain;
-    Position[0] = src->Position[0];
-    Position[1] = src->Position[1];
-    Position[2] = src->Position[2];
-    Velocity[0] = src->Velocity[0];
-    Velocity[1] = src->Velocity[1];
-    Velocity[2] = src->Velocity[2];
+    __alVectorAssign(Position, src->Position);
+    __alVectorAssign(Velocity, src->Velocity);
 
 	// Translate Listener to origin if not in AL_SOURCE_RELATIVE mode
 	if (src->srcRelative == AL_FALSE)
-	{
-        Position[0]-=listener->Position[0];
-        Position[1]-=listener->Position[1];
-        Position[2]-=listener->Position[2];
-    }
+        __alVectorSubtract(Position, listener->Position);
 
+#if DO_DOPPLER
     // Set SourceListenerDir to be used later for doppler
-    SourceListenerDir[0] = Position[0];
-    SourceListenerDir[1] = Position[1];
-    SourceListenerDir[2] = Position[2];
+    __alVectorAssign(SourceListenerDir, Position);
+#endif
 
     // Align coordinate system axis
-    alCrossproduct(listener->Up,listener->Forward,U);
-    alNormalize(U);
-    alCrossproduct(listener->Forward,U,V);
-    alNormalize(V);
-    //BlockMove(listener->Forward, N, sizeof(N));
-    memcpy(N, listener->Forward, sizeof(N));
-    alNormalize(N);
+    __alCrossproduct(listener->Up,listener->Forward,U);
+    __alNormalize(U);
+    __alCrossproduct(listener->Forward,U,V);
+    __alNormalize(V);
+    __alVectorAssign(N, listener->Forward);
+    __alNormalize(N);
     Matrix[0][0]=U[0]; Matrix[0][1]=V[0]; Matrix[0][2]=N[0];
     Matrix[1][0]=U[1]; Matrix[1][1]=V[1]; Matrix[1][2]=N[1];
     Matrix[2][0]=U[2]; Matrix[2][1]=V[2]; Matrix[2][2]=N[2];
-    alMatrixVector(Matrix,Position);
+    __alMatrixVector(Matrix,Position);
     // Convert into falloff and panning
-    Distance=(float)__alSqrt(Position[0]*Position[0]+Position[1]*Position[1]+Position[2]*Position[2]); // * ctx->distanceScale;
+    Distance = __alSqrt(Position[0]*Position[0]+Position[1]*Position[1]+Position[2]*Position[2]); // * ctx->distanceScale;
 
-    // !!! FIXME: Should we even be checking channel numbers here (should only
-    // !!! FIXME:  be called for mono buffers...
-    //if ((Distance != 0.0f) && (ctx->buffers[src->srcBufferNum-1].channels == 1))
-    if (Distance != 0.0f)
-        *Panning=(ALfloat)(0.5+0.5*0.707*cos(atan2(Position[2],Position[0])));
-    else
-        *Panning=0.5f;
-			
-    if ((distanceModel!= AL_NONE) && (Distance > 0))
+    if ((distanceModel != AL_NONE) && (Distance > 0.0f))
     {
-        if (distanceModel==AL_INVERSE_DISTANCE_CLAMPED)
+        if (distanceModel == AL_INVERSE_DISTANCE_CLAMPED)
         {
             if (Distance < src->referenceDistance)
                 Distance = src->referenceDistance;
             if (Distance > src->maxDistance)
                 Distance = src->maxDistance;
-        }
+        } // if
         CalcVolume=(src->gain*listener->Gain*src->referenceDistance)/(src->referenceDistance+src->rolloffFactor*(Distance-src->referenceDistance));
-    }
+    } // if
     else
     {
         CalcVolume=(src->gain*listener->Gain);
-    }
+    } // else
 
     // cap Volume by min/max gains
     if (CalcVolume < minGain)
         CalcVolume = minGain;
     else if (CalcVolume > maxGain)
         CalcVolume = maxGain;
-			
+
+    if (CalcVolume > 1.0f)
+        CalcVolume = 1.0f;
+
+    CalcVolume *= FULL_VOLUME;
+
+    if (1) //(ctx->device->streamFormat.mChannelsPerFrame == 2)
+    {
+        if (Distance != 0.0f)
+        {
+            ALfloat Panning=(ALfloat)(0.5+0.5*0.707*cos(atan2(Position[2],Position[0])))*2.0f;
+	        src->channelGains[0] = CalcVolume * Panning;
+	        src->channelGains[1] = CalcVolume * (2.0f - Panning);
+        } // if
+        else
+        {
+	        src->channelGains[0] = src->channelGains[1] = CalcVolume;
+        } // else
+    } // if
+    else
+    {
+        assert(0);  // !!! FIXME
+    } // else
+
+#if DO_DOPPLER
     // Calculate doppler
     if (!((SourceListenerDir[0]==0)&&(SourceListenerDir[1]==0)&&(SourceListenerDir[2]==0)))
     {
+        ALfloat CalcPitch = src->pitch;
         ALfloat dopplerVelocity = ctx->dopplerVelocity;
         ALfloat ListenerSpeed, SourceSpeed;
         alNormalize(SourceListenerDir);
@@ -235,45 +285,13 @@ static ALvoid __alCalculateSourceParameters(ALcontext *ctx, ALsource *src, ALflo
             CalcPitch = 0.5f;
         else if (CalcPitch > 2.0f)
             CalcPitch = 2.0f;
-    }
-
-    if (CalcVolume > 1.0f)
-        CalcVolume = 1.0f;
-
-    *Volume = CalcVolume;
-    *Pitch = CalcPitch;
-}
+        src->pitch = CalcPitch;
+    } // if
+#endif
+} // __alRecalcMonoSource
 
 
 // Mixing...
-
-#define DIVBY32767 0.000030519f
-#define DIVBY127   0.007874016f
-
-#define MINVOL 0.005f
-#define FULL_VOLUME 0.512f
-
-
-ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
-{
-    // Some source state has changed? Recalculate what's needed.
-    if (src->needsRecalculation == AL_TRUE)
-    {
-        ALfloat Pitch;
-        ALfloat Panning;
-        ALfloat Volume;
-        register ALfloat MonoGain;
-        register ALfloat Panningx2;
-
-        src->needsRecalculation = AL_FALSE;
-        __alCalculateSourceParameters(ctx, src, &Pitch, &Panning, &Volume);
-    	Panningx2 = Panning * 2.0f;
-    	MonoGain = FULL_VOLUME * Volume;
-	    src->CalcGainLeft = MonoGain * Panningx2;
-	    src->CalcGainRight = MonoGain * (2.0f - Panningx2);
-    } // if
-} // __alRecalcMonoSource
-
 
 // !!! FIXME: Make these mixers not suck.
 // !!! FIXME:  ... and do altivec versions of them, too.
@@ -291,8 +309,8 @@ UInt32 __alMixMono8(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst,
     register Float32 sample;
 
     __alRecalcMonoSource(ctx, src);
-	gainLeft = src->CalcGainLeft;
-	gainRight = src->CalcGainRight;
+	gainLeft = src->channelGains[0];
+	gainRight = src->channelGains[1];
 
     overflow = frames - buflen;
     if (overflow < 0)
@@ -345,8 +363,8 @@ UInt32 __alMixMono16(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst
     register Float32 sample;
 
     __alRecalcMonoSource(ctx, src);
-    gainLeft = src->CalcGainLeft;
-    gainRight = src->CalcGainRight;
+	gainLeft = src->channelGains[0];
+	gainRight = src->channelGains[1];
 
     overflow = frames - buflen;
     if (overflow < 0)
@@ -491,8 +509,8 @@ UInt32 __alMixMono8_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float3
     assert(ctx->device->streamFormat.mChannelsPerFrame == 2);
 
     __alRecalcMonoSource(ctx, src);
-    gainLeft = src->CalcGainLeft;
-    gainRight = src->CalcGainRight;
+	gainLeft = src->channelGains[0];
+	gainRight = src->channelGains[1];
 
     if (dsti)  // Destination isn't 16-byte aligned?
     {
@@ -694,8 +712,8 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
     assert(ctx->device->streamFormat.mChannelsPerFrame == 2);
 
     __alRecalcMonoSource(ctx, src);
-    gainLeft = src->CalcGainLeft;
-    gainRight = src->CalcGainRight;
+	gainLeft = src->channelGains[0];
+	gainRight = src->channelGains[1];
 
     if (dsti)  // Destination isn't 16-byte aligned?
     {

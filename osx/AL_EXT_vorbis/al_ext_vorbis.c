@@ -99,8 +99,8 @@ static inline ALvoid __alMixVorbisMono(ALcontext *ctx, ALsource *src,
     register Float32 sample;
 
     __alRecalcMonoSource(ctx, src);
-    gainLeft = src->CalcGainLeft;
-    gainRight = src->CalcGainRight;
+	gainLeft = src->channelGains[0];
+	gainRight = src->channelGains[1];
 
 /* !!! FIXME: write altivec version and precalc whether we should use it.
     if ( (__alHasEnabledVectorUnit) && (channels == 2)

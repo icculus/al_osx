@@ -52,6 +52,13 @@
 #endif
 
 // Some predeclarations...
+
+#define DIVBY32767 0.000030519f
+#define DIVBY127   0.007874016f
+
+#define MINVOL 0.005f
+#define FULL_VOLUME 0.512f
+
 struct ALdevice_struct;
 struct ALcontext_struct;
 struct ALbuffer_struct;
@@ -59,11 +66,15 @@ struct ALsource_struct;
 
 typedef pthread_mutex_t ALlock;
 
+// 4 for Altivec-happiness, but we only need 3.
+typedef ALfloat ALvector[4] __attribute__((packed,aligned(16)));
+
 // These numbers might need adjustment up or down.
 #define AL_MAXBUFFERS 1024
 #define AL_MAXBUFFERQUEUE 32
 #define AL_MAXSOURCES 128
 #define AL_MAXCONTEXTS 4
+#define AL_MAXCHANNELS 8
 
 // zero if altivec-aligned.
 #define UNALIGNED_PTR(x) (((size_t) x) & 0x0000000F)
@@ -179,10 +190,9 @@ ALvoid __alBuffersShutdown(ALbuffer *buf, ALsizei count);
 // sources...
 typedef struct ALsource_struct
 {
-    // !!! FIXME: Pad and align Position and Velocity for vectorization.
     ALboolean inUse;  // has been generated.
-    ALfloat Position[3];
-    ALfloat Velocity[3];
+    ALvector Position;
+    ALvector Velocity;
     ALuint state;
     ALboolean srcRelative;
     ALboolean looping;
@@ -205,8 +215,7 @@ typedef struct ALsource_struct
 
     // Mixing (p)recalculation...
     ALboolean needsRecalculation;
-	Float32 CalcGainLeft;
-    Float32 CalcGainRight;
+    ALfloat channelGains[AL_MAXCHANNELS];
 } ALsource;
 
 ALvoid __alSourcesInit(ALsource *src, ALsizei count);
@@ -216,12 +225,12 @@ ALvoid __alSourcesShutdown(ALsource *src, ALsizei count);
 // The Listener...
 typedef struct ALlistener_struct
 {
-	ALfloat		Position[3];
-	ALfloat		Velocity[3];
-	ALfloat		Forward[3];
-	ALfloat		Up[3];
-	ALfloat		Gain;
-	ALint		Environment;
+    ALvector Position;
+    ALvector Velocity;
+	ALvector Forward;
+	ALvector Up;
+	ALfloat Gain;
+	ALint Environment;
 } ALlistener;
 
 ALvoid __alListenerInit(ALlistener *listener);
