@@ -3,6 +3,11 @@
  * CHANGELOG.
  */
 
+10202003 - Added Altivec mono8 mixer. Mono16 and Mono8 mixers now never fall
+           back to scalar version unless absolutely forced to, for notable
+           speed boost. Average mono8 and mono16 mixing time in ut2003 is
+           now up to four times less. Other minor fixes, cleanups, and
+           optimizations to the mixers.
 10192003 - Minor fixes to the Vorbis decoder...some .oggs were suffering from
            minor decoding defects due to some optimizations.
 10182003 - Fixed testqueueing.c to not eat whole CPU. alBufferData() now uses

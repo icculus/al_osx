@@ -1,4 +1,3 @@
-- Spatialization is backwards?!
 - Resamplers need altivec versions.
 - Resamplers need to suck less.
 - Vorbis extension needs resampling to device format.
@@ -9,15 +8,15 @@
 - AL_FORMAT_MONO_FLOAT32_EXT extension
 - > 2 channel output.
 - Make alExtension.c not suck.
-- Device enumeration is hacky.
+- Device enumeration feels hacky.
 - Look for FIXMEs.
 - Remove ov_read_callbacks abstraction and use ogg buffer directly to
   relieve memcpy pressure and reduce memory bandwidth?
 - Make sure Ogg Vorbis always aligns buffers on 16 byte boundaries.
-- Make altivec mixers work with unaligned input (and use scalar for unaligned
-  output at start of buffers, so we can avoid ever falling into a completely
-  scalar mixing path.
-- Altivec mixer for mono8 is missing.
+- Make altivec stereo16 mixer works with unaligned input (and use scalar for
+  unaligned output at start of buffers, so we can avoid ever falling into a
+  completely scalar mixing path. See mono mixers for reference.
+- Altivec mixer for stereo8 is missing.
 
 // end of TODO ...
 
