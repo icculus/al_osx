@@ -146,27 +146,27 @@ ALAPI ALvoid ALAPIENTRY alDeleteBuffers(ALsizei n, ALuint *buffers)
     register ALbuffer *buf;
     register ALcontext *ctx;
 
-	if (n == 0)
-		return; // legal no-op.
+    if (n == 0)
+        return; // legal no-op.
 
-	else if (n < 0)
+    else if (n < 0)
     {
-		__alSetError(AL_INVALID_VALUE);
-		return;
+        __alSetError(AL_INVALID_VALUE);
+        return;
 	} // else if
 
     ctx = __alGrabCurrentContext();
     if (ctx == NULL)
         return;
 
-	// make sure none of the buffers are attached to a source
+    // make sure none of the buffers are attached to a source
     buf = ctx->buffers;
 
 #if 0  // !!! FIXME: Doesn't account for queued buffers.
-	for (i = 0; i < n; i++)
-	{
-	    for (j = 0; j < AL_MAXSOURCES; j++)
-		{
+    for (i = 0; i < n; i++)
+    {
+        for (j = 0; j < AL_MAXSOURCES; j++)
+        {
 		    if (gSource[j].srcBufferNum == buffers[i])
 			{
 			    bAttached = AL_TRUE;
@@ -491,7 +491,6 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
     register UInt8 *src = (UInt8 *) _src;
     register SInt32 lastSamp = ((SInt32) *src) - 128; // -128 to convert to signed.
     register SInt32 samp;
-    register int maxincr;
 
     // resample to device frequency...
 
@@ -582,7 +581,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
                 if ((eps << 1) >= dstsize)
                 {
                     src++;
-                    samp = ((*src - 128) + lastSamp) >> 1;
+                    samp = ( (((SInt32) *src) - 128) + lastSamp ) >> 1;
                     lastSamp = samp;
                     eps -= dstsize;
                 } // if
@@ -593,12 +592,11 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
 
     else  // downsampling
     {
-        maxincr = (int) ratio;
-
+        register float pos = 0.0f;  // !!! FIXME: SLOW!
         while (dst != max)
         {
-            samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
-            src += maxincr;
+            samp = ((SInt32) src[(size_t) round(pos)]) - 128;  // -128 to convert to signed.
+            pos += ratio;
             *dst = ((samp + lastSamp) >> 1);
             lastSamp = samp;
             dst++;
@@ -620,7 +618,6 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
     register SInt16 *src = (SInt16 *) _src;
     register SInt32 lastSamp = (SInt32) *src;
     register SInt32 samp;
-    register int maxincr;
 
     // resample to device frequency...
 
@@ -709,12 +706,11 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
 
     else  // downsampling
     {
-        maxincr = (int) ratio;
-
+        register float pos = 0.0f;  // !!! FIXME: SLOW!
         while (dst != max)
         {
-            samp = (SInt32) *src;
-            src += maxincr;
+            samp = (SInt32) src[(size_t) round(pos)];
+            pos += ratio;
             *dst = ((samp + lastSamp) >> 1);
             lastSamp = samp;
             dst++;
@@ -859,7 +855,7 @@ ALAPI ALvoid ALAPIENTRY alBufferData(ALuint buffer,ALenum format,ALvoid *data,AL
 
     // !!! FIXME: Make sure we're not in a source's buffer queue.
 
-    //printf("alBufferData() bid==%d, size==%d\n", (int) buffer, (int) size);
+    //printf("alBufferData() bid==%d, size==%d, freq==%d\n", (int) buffer, (int) size, (int) freq);
 
     if (buf->deleteBuffer)
         buf->deleteBuffer(buf);
