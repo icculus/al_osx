@@ -227,28 +227,25 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
                                            ALsizei freq)
 {
     register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio;
+    register ALfloat ratio = ((ALfloat) freq) / ((ALfloat) devRate);
     register UInt8 *dst = (UInt8 *) buf->mixData;
     register UInt8 *max = dst + (buf->allocatedSpace >> 1);
     register UInt8 *src = (UInt8 *) _src;
+    register SInt32 lastSampL = ((SInt32) src[0]) - 128;
+    register SInt32 lastSampR = ((SInt32) src[1]) - 128;
     register SInt32 sampL;
     register SInt32 sampR;
-    register SInt32 lastSampL;
-    register SInt32 lastSampR;
     register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
     // resample to device frequency...
-    ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    lastSampL = ((SInt32) src[0]) - 128;
-    lastSampR = ((SInt32) src[1]) - 128;
 
     if (ratio < 1.0f)  // upsampling.
     {
-        maxincr = (int) (1.0f / ratio);
+        ratio = recip_estimate(ratio);
 
-        if (maxincr == 2)  // fast path for doubling rate.
+        if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
             {
@@ -266,7 +263,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
             } // while
         } // if
 
-        else if (maxincr == 4)  // fast path for quadrupling rate.
+        if (EPSILON_EQUAL(ratio, 4.0f)) // fast path for quadrupling rate.
         {
             while (dst != max)   // !!! FIXME: Altivec!
             {
@@ -289,6 +286,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
+            maxincr = (int) ratio;
             while (dst != max)
             {
                 sampL = ((SInt32) src[0])-128;
@@ -332,28 +330,25 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                                             ALsizei freq)
 {
     register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio;
+    register ALfloat ratio = ((ALfloat) freq) / ((ALfloat) devRate);
     register SInt16 *dst = (SInt16 *) buf->mixData;
     register SInt16 *max = dst + (buf->allocatedSpace >> 1);
     register SInt16 *src = (SInt16 *) _src;
+    register SInt32 lastSampL = (SInt32) src[0];
+    register SInt32 lastSampR = (SInt32) src[1];
+    register SInt32 linear_counter;
     register SInt32 sampL;
     register SInt32 sampR;
-    register SInt32 lastSampL;
-    register SInt32 lastSampR;
-    register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
     // resample to device frequency...
-    ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    lastSampL = (SInt32) src[0];
-    lastSampR = (SInt32) src[1];
 
     if (ratio < 1.0f)  // upsampling.
     {
-        maxincr = (int) (1.0f / ratio);
+        ratio = recip_estimate(ratio);
 
-        if (maxincr == 2)  // fast path for doubling rate.
+        if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
             {
@@ -367,11 +362,10 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 lastSampL = sampL;
                 lastSampR = sampR;
                 dst += 4;
-                
             } // while
         } // if
 
-        else if (maxincr == 4)  // fast path for quadrupling rate.
+        else if (EPSILON_EQUAL(ratio, 4.0f)) // fast path for quadrupling rate.
         {
             while (dst != max)   // !!! FIXME: Altivec!
             {
@@ -394,6 +388,7 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
+            maxincr = (int) ratio;
             while (dst != max)
             {
                 sampL = (SInt32) src[0];
@@ -438,26 +433,23 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
                                          ALsizei freq)
 {
     register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-
-    register ALfloat ratio;
+    register ALfloat ratio = ((ALfloat) freq) / ((ALfloat) devRate);
     register SInt8 *dst = (SInt8 *) buf->mixData;
     register SInt8 *max = dst + buf->allocatedSpace;
     register UInt8 *src = (UInt8 *) _src;
+    register SInt32 lastSamp = ((SInt32) *src) - 128; // -128 to convert to signed.
     register SInt32 samp;
-    register SInt32 lastSamp;
     register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
     // resample to device frequency...
-    ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    lastSamp = ((SInt32) *src) - 128; // -128 to convert to signed.
 
     if (ratio <= 1.0f)  // upsampling.
     {
-        maxincr = (int) (1.0f / ratio);
+        ratio = recip_estimate(ratio);
 
-        if (maxincr == 1)  // fast path for just converting to signed.
+        if (EPSILON_EQUAL(ratio, 1.0f)) // fast path for signed conversion.
         {
             while (dst != max)
             {
@@ -470,7 +462,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             } // while
         } // if
 
-        if (maxincr == 2)  // fast path for doubling rate.
+        else if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
             {
@@ -483,7 +475,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             } // while
         } // if
 
-        else if (maxincr == 4)  // fast path for quadrupling rate.
+        else if (EPSILON_EQUAL(ratio, 4.0f)) // fast path for quadrupling rate.
         {
             while (dst != max)
             {
@@ -500,6 +492,8 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
+            maxincr = (int) ratio;
+
             while (dst != max)
             {
                 samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
@@ -536,25 +530,23 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
                                           ALsizei freq)
 {
     register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio;
+    register ALfloat ratio = ((ALfloat) freq) / devRate;
     register SInt16 *dst = (SInt16 *) buf->mixData;
     register SInt16 *max = dst + (buf->allocatedSpace >> 1);
     register SInt16 *src = (SInt16 *) _src;
+    register SInt32 lastSamp = (SInt32) *src;
     register SInt32 samp;
-    register SInt32 lastSamp;
     register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
     // resample to device frequency...
-    ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    lastSamp = (SInt32) *src;
 
     if (ratio < 1.0f)  // upsampling.
     {
-        maxincr = (int) (1.0f / ratio);
+        ratio = recip_estimate(ratio);
 
-        if (maxincr == 2)  // fast path for doubling rate.
+        if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
             {
@@ -567,7 +559,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             } // while
         } // if
 
-        else if (maxincr == 4)  // fast path for quadrupling rate.
+        else if (EPSILON_EQUAL(ratio, 4.0f)) // fast path for quadrupling rate.
         {
             while (dst != max)
             {
@@ -584,6 +576,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
+            maxincr = (int) ratio;
             while (dst != max)
             {
                 samp = (SInt32) *src;
