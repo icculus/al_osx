@@ -541,7 +541,7 @@ ALCAPI ALvoid ALCAPIENTRY alcSuspendContext( ALCcontext *alcHandle )
 #if SUPPORTS_ALC_EXT_CAPTURE
 ALCAPI ALCdevice* ALCAPIENTRY alcCaptureOpenDevice(const ALubyte *deviceName,
                                                     ALuint freq, ALenum fmt,
-                                                    ALsizei bufsize)
+                                                    ALsizei samples)
 {
     ALdevice *retval;
     ALuint fmtsize = 0;
@@ -561,7 +561,7 @@ ALCAPI ALCdevice* ALCAPIENTRY alcCaptureOpenDevice(const ALubyte *deviceName,
     if (!retval)
         return(NULL);
 
-    if (!__alRingBufferInit(&retval->capture.ring, bufsize * fmtsize))
+    if (!__alRingBufferInit(&retval->capture.ring, samples * fmtsize))
     {
         alcCloseDevice((ALCdevice *) retval);
         return(NULL);
