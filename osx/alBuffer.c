@@ -235,8 +235,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
     register SInt32 sampR;
     register SInt32 lastSampL;
     register SInt32 lastSampR;
-    register UInt8 avgL;
-    register UInt8 avgR;
+    register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
@@ -253,17 +252,16 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
         {
             while (dst != max)
             {
+                //linear interp
                 sampL = ((SInt32) src[0]) - 128;
                 sampR = ((SInt32) src[1]) - 128;
                 src += 2;
-                avgL = ((sampL + lastSampL) >> 1);
-                avgR = ((sampR + lastSampR) >> 1);
+                dst[0] = ((sampL + lastSampL) >> 1);
+                dst[1] = ((sampR + lastSampR) >> 1);
+                dst[2] = sampL;
+                dst[3] = sampR;
                 lastSampL = sampL;
                 lastSampR = sampR;
-                dst[0] = avgL;
-                dst[1] = avgR;
-                dst[2] = avgL;
-                dst[3] = avgR;
                 dst += 4;
             } // while
         } // if
@@ -272,21 +270,19 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
         {
             while (dst != max)   // !!! FIXME: Altivec!
             {
-                sampL = (SInt32) src[0];
-                sampR = (SInt32) src[1];
+                sampL = ((SInt32) src[0])-128;
+                sampR = ((SInt32) src[1])-128;
                 src += 2;
-                avgL = ((sampL + lastSampL) >> 1);
-                avgR = ((sampR + lastSampR) >> 1);
+                dst[0] = ((sampL + 3*lastSampL) >> 2);
+                dst[1] = ((sampR + 3*lastSampR) >> 2);
+                dst[2] = ((sampL + lastSampL) >> 1);
+                dst[3] = ((sampR + lastSampR) >> 1);
+                dst[4] = ((3*sampL + lastSampL) >> 2);
+                dst[5] = ((3*sampR + lastSampR) >> 2);
+                dst[6] = sampL;
+                dst[7] = sampR;
                 lastSampL = sampL;
                 lastSampR = sampR;
-                dst[0] = avgL;
-                dst[1] = avgR;
-                dst[2] = avgL;
-                dst[3] = avgR;
-                dst[4] = avgL;
-                dst[5] = avgR;
-                dst[6] = avgL;
-                dst[7] = avgR;
                 dst += 8;
             } // while
         } // if
@@ -295,18 +291,17 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
         {
             while (dst != max)
             {
-                sampL = (SInt32) src[0];
-                sampR = (SInt32) src[1];
+                sampL = ((SInt32) src[0])-128;
+                sampR = ((SInt32) src[1])-128;
                 src += 2;
-                avgL = ((sampL + lastSampL) >> 1);
-                avgR = ((sampR + lastSampR) >> 1);
+                for (incr = 0; incr < maxincr; incr++, dst += 2)
+                {
+                    linear_counter=(incr+1);
+                    dst[0] = ((linear_counter*sampL + (maxincr-linear_counter)*lastSampL) / maxincr);
+                    dst[1] = ((linear_counter*sampR + (maxincr-linear_counter)*lastSampR) / maxincr);
+                } // for
                 lastSampL = sampL;
                 lastSampR = sampR;
-                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst+=2)
-                {
-                    dst[0] = avgL;
-                    dst[1] = avgR;
-                } // for
             } // while
         } // else
     } // if
@@ -345,8 +340,7 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
     register SInt32 sampR;
     register SInt32 lastSampL;
     register SInt32 lastSampR;
-    register SInt16 avgL;
-    register SInt16 avgR;
+    register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
@@ -366,15 +360,14 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 sampL = (SInt32) src[0];
                 sampR = (SInt32) src[1];
                 src += 2;
-                avgL = ((sampL + lastSampL) >> 1);
-                avgR = ((sampR + lastSampR) >> 1);
+                dst[0] = ((sampL + lastSampL) >> 1);
+                dst[1] = ((sampR + lastSampR) >> 1);
+                dst[2] = sampL;
+                dst[3] = sampR;
                 lastSampL = sampL;
                 lastSampR = sampR;
-                dst[0] = avgL;
-                dst[1] = avgR;
-                dst[2] = avgL;
-                dst[3] = avgR;
                 dst += 4;
+                
             } // while
         } // if
 
@@ -385,18 +378,16 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 sampL = (SInt32) src[0];
                 sampR = (SInt32) src[1];
                 src += 2;
-                avgL = ((sampL + lastSampL) >> 1);
-                avgR = ((sampR + lastSampR) >> 1);
+                dst[0] = ((sampL + 3*lastSampL) >> 2);
+                dst[1] = ((sampR + 3*lastSampR) >> 2);
+                dst[2] = ((sampL + lastSampL) >> 1);
+                dst[3] = ((sampR + lastSampR) >> 1);
+                dst[4] = ((3*sampL + lastSampL) >> 2);
+                dst[5] = ((3*sampR + lastSampR) >> 2);
+                dst[6] = sampL;
+                dst[7] = sampR;
                 lastSampL = sampL;
                 lastSampR = sampR;
-                dst[0] = avgL;
-                dst[1] = avgR;
-                dst[2] = avgL;
-                dst[3] = avgR;
-                dst[4] = avgL;
-                dst[5] = avgR;
-                dst[6] = avgL;
-                dst[7] = avgR;
                 dst += 8;
             } // while
         } // if
@@ -408,15 +399,14 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 sampL = (SInt32) src[0];
                 sampR = (SInt32) src[1];
                 src += 2;
-                avgL = ((sampL + lastSampL) >> 1);
-                avgR = ((sampR + lastSampR) >> 1);
+                for (incr = 0; incr < maxincr; incr++, dst += 2)
+                {
+                    linear_counter=(incr+1);
+                    dst[0] = ((linear_counter*sampL + (maxincr-linear_counter)*lastSampL) / maxincr);
+                    dst[1] = ((linear_counter*sampR + (maxincr-linear_counter)*lastSampR) / maxincr);
+                } // for
                 lastSampL = sampL;
                 lastSampR = sampR;
-                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst+=2)
-                {
-                    dst[0] = avgL;
-                    dst[1] = avgR;
-                } // for
             } // while
         } // else
     } // if
@@ -448,13 +438,14 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
                                          ALsizei freq)
 {
     register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
+
     register ALfloat ratio;
     register SInt8 *dst = (SInt8 *) buf->mixData;
     register SInt8 *max = dst + buf->allocatedSpace;
     register UInt8 *src = (UInt8 *) _src;
     register SInt32 samp;
     register SInt32 lastSamp;
-    register SInt8 avg;
+    register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
@@ -485,10 +476,9 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             {
                 samp = ((SInt32) *src) - 128; // -128 to convert to signed.
                 src++;
-                avg = ((samp + lastSamp) >> 1);
+                dst[0] = ((samp + lastSamp) >> 1);
+                dst[1] = samp;
                 lastSamp = samp;
-                dst[0] = avg;
-                dst[1] = avg;
                 dst += 2;
             } // while
         } // if
@@ -499,13 +489,12 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             {
                 samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
                 src++;
-                avg = ((samp + lastSamp) >> 1);
-                lastSamp = samp;
-                dst[0] = avg;
-                dst[1] = avg;
-                dst[2] = avg;
-                dst[3] = avg;
+                dst[0] = ((samp + 3*lastSamp) >> 2);
+                dst[1] = ((samp + lastSamp) >> 1);
+                dst[2] = ((3*samp + lastSamp) >> 2);
+                dst[3] = samp;
                 dst += 4;
+                lastSamp = samp;
             } // while
         } // if
 
@@ -515,10 +504,11 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
             {
                 samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
                 src++;
-                avg = ((samp + lastSamp) >> 1);
-                lastSamp = samp;
-                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst++)
-                    *dst = avg;
+                for (incr = 0; incr < maxincr; incr++, dst++){
+                    linear_counter=(incr+1);
+                    *dst = ((linear_counter*samp + (maxincr-linear_counter)*lastSamp) / maxincr);
+                }
+                lastSamp = samp;    
             } // while
         } // else
     } // if
@@ -552,7 +542,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
     register SInt16 *src = (SInt16 *) _src;
     register SInt32 samp;
     register SInt32 lastSamp;
-    register SInt16 avg;
+    register SInt32 linear_counter;
     register int incr;
     register int maxincr;
 
@@ -570,10 +560,9 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             {
                 samp = (SInt32) *src;
                 src++;
-                avg = ((samp + lastSamp) >> 1);
+                dst[0] = ((samp + lastSamp) >> 1);
+                dst[1] = samp;
                 lastSamp = samp;
-                dst[0] = avg;
-                dst[1] = avg;
                 dst += 2;
             } // while
         } // if
@@ -584,13 +573,12 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             {
                 samp = (SInt32) *src;
                 src++;
-                avg = ((samp + lastSamp) >> 1);
-                lastSamp = samp;
-                dst[0] = avg;
-                dst[1] = avg;
-                dst[2] = avg;
-                dst[3] = avg;
+                dst[0] = ((samp + 3*lastSamp) >> 2);
+                dst[1] = ((samp + lastSamp) >> 1);
+                dst[2] = ((3*samp + lastSamp) >> 2);
+                dst[3] = samp;
                 dst += 4;
+                lastSamp = samp;
             } // while
         } // if
 
@@ -600,10 +588,11 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             {
                 samp = (SInt32) *src;
                 src++;
-                avg = ((samp + lastSamp) >> 1);
-                lastSamp = samp;
-                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst++)
-                    *dst = avg;
+                for (incr = 0; incr < maxincr; incr++, dst++){
+                    linear_counter=(incr+1);
+                    *dst = ((linear_counter*samp + (maxincr-linear_counter)*lastSamp) / maxincr);
+                }
+                lastSamp = samp; 
             } // while
         } // else
     } // if
