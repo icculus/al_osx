@@ -834,7 +834,8 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 
     if (newAlloc != buffer->allocatedSpace)
     {
-        void *ptr = realloc(buffer->mixUnalignedPtr, newAlloc + 16);
+        // +32 so we can align to 16 bytes and buffer misaligned reads.
+        void *ptr = realloc(buffer->mixUnalignedPtr, newAlloc + 32);
         if (ptr == NULL)
         {
             __alSetError(AL_OUT_OF_MEMORY);
