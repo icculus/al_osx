@@ -174,23 +174,31 @@ ALCAPI ALvoid    ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsiz
 ALCAPI void * ALCAPIENTRY alcCreateContext(ALCdevice *device, ALint *attrlist)
 {
     ALdevice *dev = (ALdevice *) device;
-    ALcontext *ctx;
+    ALcontext *ctx = NULL;
     ALsizei i;
 
     __alGrabDevice(dev);
 
-    for (i = 0, ctx = dev->contexts; i < AL_MAXCONTEXTS; i++, ctx++)
+    for (i = 0; i < AL_MAXCONTEXTS; i++)
     {
-        if (ctx->inUse == AL_FALSE)
+        if (dev->createdContexts[i] == NULL)
             break;
     } // for
 
     if (i >= AL_MAXCONTEXTS)
         __alcSetError(dev, ALC_OUT_OF_MEMORY);  // (*shrug*).
-    else if (__alcConfigureDevice(dev, attrlist) == AL_FALSE)
-        ctx = NULL;
-    else
+    else if (__alcConfigureDevice(dev, attrlist) == AL_TRUE)
     {
+        ALsizei j;
+        
+        for (j = 0, ctx = dev->contexts; j < AL_MAXCONTEXTS; j++, ctx++)
+        {
+            if (ctx->inUse == AL_FALSE)
+                break;
+        } // for
+        assert(j < AL_MAXCONTEXTS);
+
+        dev->createdContexts[i] = ctx;
         memset(ctx, '\0', sizeof (ALcontext));
         __alBuffersInit(ctx->buffers, AL_MAXBUFFERS);
         __alSourcesInit(ctx->sources, AL_MAXSOURCES);
@@ -214,7 +222,9 @@ ALCAPI void * ALCAPIENTRY alcCreateContext(ALCdevice *device, ALint *attrlist)
 ALCAPI ALCenum ALCAPIENTRY alcDestroyContext(ALCcontext *context)
 {
     ALcontext *ctx = (ALcontext *) context;
+    ALcontext **ctxs;
     ALdevice *dev;
+    ALsizei i;
 
     if (ctx == NULL)
         return(ALC_INVALID_CONTEXT);
@@ -227,8 +237,27 @@ ALCAPI ALCenum ALCAPIENTRY alcDestroyContext(ALCcontext *context)
 
     __alGrabDevice(ctx->device);
 
-    ctx->suspended = AL_TRUE;
+    ctxs = ctx->device->createdContexts;
+    for (i = 0; i < AL_MAXCONTEXTS; i++, ctxs++)
+    {
+        if (*ctxs == ctx)
+            break;
+    } // for
+
+    if (i == AL_MAXCONTEXTS)  // not created?!
+    {
+        assert(0);
+        __alUngrabDevice(ctx->device);  // not sure what to do with this...
+        __alUngrabContext(ctx);
+        return(ALC_INVALID_CONTEXT);
+    } // if
+
     ctx->inUse = AL_FALSE;
+    ctx->suspended = AL_TRUE;
+
+    // Move dead pointer out of device's createdContext array.
+    memmove(&dev->createdContexts[i], &dev->createdContexts[i+1],
+            sizeof (ALcontext *) * (AL_MAXCONTEXTS - i) );
 
     // According to the AL spec:
     //  "Applications should not attempt to destroy a current context."
@@ -240,11 +269,7 @@ ALCAPI ALCenum ALCAPIENTRY alcDestroyContext(ALCcontext *context)
     // Now that we're definitely not current, the only contention can be
     //  with the audio callback, which is currently blocked by the device
     //  lock, and will precede to ignore this context when it obtains the
-    //  lock because of the ctx->inUse flag. Alternately, the application
-    //  may reset the context to be current in another thread, but that's a
-    //  race condition we can't avoid, unrealistic, and arguably a bug in
-    //  their code anyhow. Therefore, it's safe to unlock and destroy the
-    //  context-specific mutex now.
+    //  lock because we're not in the createdContexts array any longer.
     __alUngrabContext(ctx);
     __alDestroyLock(&ctx->contextLock);
 
@@ -618,38 +643,28 @@ static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName, AudioDeviceID
 
 static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
 {
-    ALsizei srcCount;
-    ALsource *src;
-    ALsizei i;
-    ALbuffer *buf;
-
-    if ((!ctx->inUse) || (ctx->suspended))
-        return;
-
-    srcCount = 0;
+    register ALsource *src;
+    register ALsource **playingSources;
+    register ALsource **srcs;
+    register ALbuffer *buf;
+    register ALsizei i;
+    register ALsizei firstDeadSource = -1;
+    register ALsizei playCount = 0;
 
     __alGrabContext(ctx);
 
-    // !!! FIXME: lose these printfs.
-    //printf("new context\n");
-
-    for (i = 0, src = ctx->sources; i < AL_MAXSOURCES; i++, src++)
+    playingSources = ctx->playingSources;
+    for (i = 0, srcs = playingSources; *srcs != NULL; srcs++, i++)
     {
-        ALuint bufname;
-        UInt32 srcframes;
+        register UInt32 srcframes = frames;
+        register ALuint bufname;
 
-        if (src->inUse)
-            srcCount++;
-
-        // !!! FIXME: This is an ugly performance hack.
-        else if (srcCount >= ctx->generatedSources)
-            break;  // we're done with this context.
-
-        srcframes = frames;
+        playCount++;
+        src = *srcs;
+        assert(src->inUse);
 
         if (src->state == AL_PLAYING)
         {
-            //printf("new source\n");
             while (srcframes)
             {
                 if (src->bufferPos >= src->bufferCount)
@@ -660,7 +675,6 @@ static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
                         continue;
                     } // if
 
-                    //printf("stopping completed source.\n");
                     src->state = AL_STOPPED;
                     break;  // no buffers left in queue.
                 } // if
@@ -689,7 +703,6 @@ static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
                 srcframes = buf->mixFunc(ctx, buf, src, dst, srcframes);
                 if (srcframes)  // exhausted current buffer?
                 {
-                    //printf("buffer at index %d processed.\n", src->bufferPos);
                     // !!! FIXME: Call rewind instead if looping...
                     if (buf->processedBuffer)
                     {
@@ -702,16 +715,43 @@ static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
                 } // if
             } // while
         } // if
+
+        // Can be stopped if above mixing exhausted buffer queue or
+        //  alSourceStop was called since last mixing...
+        if (src->state == AL_STOPPED)
+        {
+            if (firstDeadSource == -1)
+                firstDeadSource = i;
+            *srcs = NULL;
+            playCount--;
+        } // if
     } // for
+
+    // Compact playingSources array to remove stopped sources, if needed...
+    assert(playCount >= 0);
+
+    if (firstDeadSource != -1) // some or all sources have stopped.
+    {
+        register ALsizei i = firstDeadSource;
+        for (srcs = playingSources + i; i < playCount; srcs++)
+        {
+            if (*srcs != NULL)
+            {
+                *playingSources = *srcs;
+                playingSources++;
+                i++;
+            } // if
+        } // for
+        *playingSources = NULL;
+    } // else if
 
     __alUngrabContext(ctx);
 } // __alcMixContext
 
 
-static OSStatus __alcDeviceFillingProc(AudioDeviceID  inDevice, const AudioTimeStamp*  inNow, const AudioBufferList*  inInputData, const AudioTimeStamp*  inInputTime, AudioBufferList*  outOutputData, const AudioTimeStamp* inOutputTime, void* inClientData)
+static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  inNow, const AudioBufferList*  inInputData, const AudioTimeStamp*  inInputTime, AudioBufferList*  outOutputData, const AudioTimeStamp* inOutputTime, void* inClientData)
 {    
-    // !!! FIXME: As a fastpath, write silence to the device and return if hardware volume
-    // !!! FIXME:  is muted.
+    // !!! FIXME: As a fastpath, return immediately if hardware volume is muted.
 
     // !!! FIXME: Change output to new device if user changed default output in System Preferences
     // !!! FIXME:  and this callback is attached to an alcCreateDevice(NULL). Don't change if
@@ -725,22 +765,29 @@ static OSStatus __alcDeviceFillingProc(AudioDeviceID  inDevice, const AudioTimeS
     // !!! FIXME: Is the output buffer initialized, or do I need to initialize it in fast paths?
 
     ALdevice *dev = (ALdevice *) inClientData;
-    ALcontext *ctx = dev->contexts;
-	Float32 *outDataPtr = (outOutputData->mBuffers[0]).mData;
-    UInt32 outDataSize = outOutputData->mBuffers[0].mDataByteSize;
-    ALsizei i;
-
     __alGrabDevice(dev);  // potentially long lock...
+
+    ALcontext **ctxs;
+    Float32 *outDataPtr = (outOutputData->mBuffers[0]).mData;
+    UInt32 outDataSize = outOutputData->mBuffers[0].mDataByteSize;
 
     outDataSize /= (sizeof (Float32) * dev->streamFormat.mChannelsPerFrame);
 
-    for (i = 0; i < AL_MAXCONTEXTS; i++, ctx++)
-        __alcMixContext(ctx, outDataPtr, outDataSize);
+    for (ctxs = dev->createdContexts; *ctxs != NULL; ctxs++)
+    {
+        ALcontext *ctx = *ctxs;
+
+        // Technically, this would be a race condition, but it can't
+        //  actually segfault, and the worst that can happen is that we
+        //  swallow the cost of a mutex lock and function call to find out
+        //  we don't really have to mix this context.
+        if ((!ctx->suspended) && (ctx->playingSources[0] != NULL))
+            __alcMixContext(ctx, outDataPtr, outDataSize);
+    } // for
 
     __alUngrabDevice(dev);
-
     return kAudioHardwareNoError;
-} // __alcDeviceFillingProc
+} // __alcMixDevice
 
 
 #if HAVE_PRAGMA_EXPORT
@@ -795,20 +842,19 @@ ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
     count = sizeof (UInt32);
     AudioDeviceSetProperty(device, NULL, 0, 0, kAudioDevicePropertyBufferSize, count, &bufsize);
 
-    retval = (ALdevice *) malloc(sizeof (ALdevice));
+    retval = (ALdevice *) calloc(1, sizeof (ALdevice));
     if (retval == NULL)
         return(NULL);
 
     memcpy(&retval->streamFormat, &streamFormat, sizeof (streamFormat));
     retval->device = device;
-    memset(retval->contexts, '\0', sizeof (retval->contexts));
     __alCreateLock(&retval->deviceLock);
 
-	if ((AudioDeviceAddIOProc(device, __alcDeviceFillingProc, retval) != kAudioHardwareNoError) ||
-        (AudioDeviceStart(device, __alcDeviceFillingProc) != kAudioHardwareNoError))
+	if ((AudioDeviceAddIOProc(device, __alcMixDevice, retval) != kAudioHardwareNoError) ||
+        (AudioDeviceStart(device, __alcMixDevice) != kAudioHardwareNoError))
     {
         
-	    AudioDeviceRemoveIOProc(device, __alcDeviceFillingProc);
+	    AudioDeviceRemoveIOProc(device, __alcMixDevice);
         __alDestroyLock(&retval->deviceLock);
         free(retval);
         return(NULL);
@@ -823,27 +869,21 @@ ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
 ALCAPI void ALCAPIENTRY alcCloseDevice( ALCdevice *device )
 {
     ALdevice *dev = (ALdevice *) device;
-    ALcontext *ctx;
-    ALsizei i;
 
-    for (i = 0, ctx = dev->contexts; i < AL_MAXCONTEXTS; i++, ctx++)
+    // Contexts associated with this device still exist?
+    if (dev->createdContexts[0] != NULL)
+        __alcSetError(dev, ALC_INVALID);
+    else
     {
-        // Contexts associated with this device still exist?
-        if (ctx->inUse == AL_TRUE)
-        {
-            __alcSetError(dev, ALC_INVALID);
-            return;
-        } // if
-    } // for
+    	AudioDeviceStop(dev->device, __alcMixDevice);
+	    AudioDeviceRemoveIOProc(dev->device, __alcMixDevice);
 
-	AudioDeviceStop(dev->device, __alcDeviceFillingProc);
-	AudioDeviceRemoveIOProc(dev->device, __alcDeviceFillingProc);
+        // !!! FIXME: I assume this means the audio callback not only cannot
+        // !!! FIXME:  start a new run, but it will not be running at this point.
 
-    // !!! FIXME: I assume this means the audio callback not only cannot
-    // !!! FIXME:  start a new run, but it will not be running at this point.
-
-    __alDestroyLock(&dev->deviceLock);
-    free(dev);
+        __alDestroyLock(&dev->deviceLock);
+        free(dev);
+    } // else
 } // alcCloseDevice
 
 #endif  // MACOSX

@@ -20,9 +20,13 @@
 
 #include "alInternal.h"
 
+
 #if HAVE_PRAGMA_EXPORT
 #pragma export off
 #endif
+
+
+// Internal source manipulation code...
 
 ALvoid __alSourcesInit(ALsource *srcs, ALsizei count)
 {
@@ -52,9 +56,9 @@ ALvoid __alSourcesShutdown(ALsource *srcs, ALsizei count)
 } // __alSourcesShutdown
 
 
-static ALcontext *__alGrabContextAndGetSource(ALuint srcid, ALsource **srcout)
+static inline ALsource *__alFindSource_locked(ALcontext *ctx, ALuint srcid)
 {
-    register ALcontext *ctx;
+    ALsource *retval;
 
 	if (srcid >= AL_MAXSOURCES)
     {
@@ -62,71 +66,34 @@ static ALcontext *__alGrabContextAndGetSource(ALuint srcid, ALsource **srcout)
         return(NULL);
     } // if
 
-    ctx = __alGrabCurrentContext();
-    *srcout = &ctx->sources[srcid];
-
-    if ( !((*srcout)->inUse) )
+    retval = &ctx->sources[srcid];
+    if ( !(retval->inUse) )
     {
 	    __alSetError(AL_INVALID_NAME);
-        __alUngrabContext(ctx);
         return(NULL);
+    } // if
+
+    return(retval);
+} // __alFindSource_locked
+
+
+static ALcontext *__alGrabContextAndGetSource(ALuint srcid, ALsource **srcout)
+{
+    ALcontext *ctx = __alGrabCurrentContext();
+    
+    if (ctx != NULL)
+    {
+        *srcout = __alFindSource_locked(ctx, srcid);
+        if (*srcout == NULL)
+        {
+            __alUngrabContext(ctx);
+            return(NULL);
+        } // if
     } // if
 
     return(ctx);
 } // __alGrabContextAndGetSource
 
-
-static inline ALvoid ALAPIENTRY __alSourceStop_locked(ALsource *src)
-{
-    // According to the spec:
-    //  "Stop() applied to an INITIAL Source is a legal NOP."
-    //  "Stop() applied to a STOPPED Source is a legal NOP."
-    if ((src->state == AL_INITIAL) || (src->state == AL_STOPPED))
-        return;
-
-    // !!! FIXME: Grab playlist lock.
-    src->state = AL_STOPPED;
-
-    // According to the spec:
-    //  "Removal of a given queue entry is not possible unless either the
-    //  Source is STOPPED (in which case then entire queue is considered
-    //  processed)..."
-    src->bufferPos = src->bufferCount;  // set whole queue to "processed".
-
-    // !!! FIXME: Ungrab playlist lock.
-} // __alSourceStop_locked
-
-
-static inline ALvoid __alSourcePlay_locked(ALsource *src)
-{
-    // !!! FIXME: Grab playlist lock.
-    if (src->state != AL_PAUSED)
-    {
-        // !!! FIXME: Is this right? Restart the current buffer, or
-        // !!! FIXME:  restart the queue?
-        src->bufferReadIndex = 0;
-    } // if
-
-    src->state = AL_PLAYING;
-    // !!! FIXME: Ungrab playlist lock.
-} // __alSourcePlay_locked
-
-
-static inline ALvoid __alSourcePause_locked(ALsource *src)
-{
-    // !!! FIXME: Grab playlist lock.
-    src->state = AL_PAUSED;
-    // !!! FIXME: Ungrab playlist lock.
-} // __alSourcePause_locked
-
-
-static inline ALvoid __alSourceRewind_locked(ALsource *src)
-{
-    // !!! FIXME: Grab playlist lock.
-    src->state = AL_INITIAL;
-    src->bufferReadIndex = 0;
-    // !!! FIXME: Ungrab playlist lock.
-} // __alSourceRewind_locked
 
 
 #if SUPPORTS_AL_EXT_BUFFER_OFFSET
@@ -154,9 +121,13 @@ static inline ALbuffer *__alGetPlayingBuffer(ALcontext *ctx, ALsource *src)
 #endif
 
 
+
 #if HAVE_PRAGMA_EXPORT
 #pragma export on
 #endif
+
+
+// Source management...
 
 ALAPI ALvoid ALAPIENTRY alGenSources(ALsizei _n, ALuint *sources)
 {
@@ -238,6 +209,8 @@ ALAPI ALvoid ALAPIENTRY alDeleteSources(ALsizei _n, ALuint *sources)
     } // if
     else
     {
+        // !!! FIXME: Legal to delete a playing source? If so, we need to
+        // !!! FIXME:  update ctx->playingSources...
     	for (i = 0; i < n; i++)
 	    {
             if ((sources[i] >= AL_MAXSOURCES) || (!ctx->sources[sources[i]].inUse))
@@ -272,6 +245,8 @@ ALAPI ALboolean ALAPIENTRY alIsSource(ALuint source)
     return(AL_TRUE);
 } // alIsSource
 
+
+// Source attributes...
 
 ALAPI ALvoid ALAPIENTRY alSourcef (ALuint source, ALenum pname, ALfloat value)
 {
@@ -683,43 +658,55 @@ ALAPI ALvoid ALAPIENTRY alGetSourceiv(ALuint source, ALenum pname, ALint *value)
 } // alGetSourceiv
 
 
-ALAPI ALvoid ALAPIENTRY alSourceStop (ALuint source)
+// Source play ...
+
+static inline ALvoid __alSourcePlay_locked(ALcontext *ctx, ALsource *src)
 {
-    alSourceStopv(1, &source);
-} // alSourceStop
+    if (src != NULL)
+    {
+        if (src->state != AL_PAUSED)
+        {
+            ALsource **srcs;
 
+            // !!! FIXME: Is this right? Restart the current buffer, or
+            // !!! FIXME:  restart the queue?
+            src->bufferReadIndex = 0;
 
-ALAPI ALvoid ALAPIENTRY alSourcePlay(ALuint source)
-{
-    alSourcePlayv(1, &source);
-} // alSourcePlay
+            // Make sure we're in the playing list.
+            //  We might already be there if we're INITIAL from a rewind
+            //  or STOPPED and the audio callback hasn't run to clean the
+            //  reference out of the array yet.
+            srcs = ctx->playingSources;
+            while (1)  // (srcs) should always be null-terminated.
+            {
+                if (*srcs == src)
+                    break;
 
+                else if (*srcs == NULL)
+                {
+                    srcs[0] = src;
+                    srcs[1] = NULL;
+                    break;
+                } // else if
 
-ALAPI ALvoid ALAPIENTRY alSourcePause (ALuint source)
-{
-    alSourcePausev(1, &source);
-} // alSourcePause
+                srcs++;
+            } // while
+        } // if
 
-
-ALAPI ALvoid ALAPIENTRY alSourceRewind (ALuint source)
-{
-    alSourceRewindv(1, &source);
-} // alSourceRewind
-
+        src->state = AL_PLAYING;
+    } // if
+} // __alSourcePlay_locked
 
 ALAPI ALvoid ALAPIENTRY alSourcePlayv(ALsizei n, ALuint *_id)
 {
-	register ALcontext *ctx;
     if (n > 0)
 	{
-        ctx = __alGrabCurrentContext();
+	    register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
 		    while (n--)
     		{
-                register ALuint id = *_id;
-                if (id < AL_MAXSOURCES)
-	    		    __alSourcePlay_locked(&ctx->sources[id]);
+                __alSourcePlay_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
 		    } // while
             __alUngrabContext(ctx);
@@ -727,20 +714,35 @@ ALAPI ALvoid ALAPIENTRY alSourcePlayv(ALsizei n, ALuint *_id)
     } // if
 } // alSourcePlayv
 
+ALAPI ALvoid ALAPIENTRY alSourcePlay(ALuint source)
+{
+    alSourcePlayv(1, &source);
+} // alSourcePlay
+
+
+
+// Source pause...
+
+static inline ALvoid __alSourcePause_locked(ALcontext *ctx, ALsource *src)
+{
+    if (src != NULL)
+    {
+        if (src->state == AL_PLAYING)  // !!! FIXME: An error if not playing?
+            src->state = AL_PAUSED;
+    } // if
+} // __alSourcePause_locked
+
 
 ALAPI ALvoid ALAPIENTRY alSourcePausev(ALsizei n, ALuint *_id)
 {
-	register ALcontext *ctx;
     if (n > 0)
 	{
-        ctx = __alGrabCurrentContext();
+	    register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
 		    while (n--)
     		{
-                register ALuint id = *_id;
-                if (id < AL_MAXSOURCES)
-	    		    __alSourcePause_locked(&ctx->sources[id]);
+                __alSourcePause_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
 		    } // while
             __alUngrabContext(ctx);
@@ -749,19 +751,44 @@ ALAPI ALvoid ALAPIENTRY alSourcePausev(ALsizei n, ALuint *_id)
 } // alSourcePausev
 
 
+ALAPI ALvoid ALAPIENTRY alSourcePause (ALuint source)
+{
+    alSourcePausev(1, &source);
+} // alSourcePause
+
+
+
+// Source stop...
+
+static inline ALvoid __alSourceStop_locked(ALcontext *ctx, ALsource *src)
+{
+    // According to the spec:
+    //  "Stop() applied to an INITIAL Source is a legal NOP."
+    //  "Stop() applied to a STOPPED Source is a legal NOP."
+    if ((!src) || (src->state == AL_INITIAL) || (src->state == AL_STOPPED))
+        return;
+
+    // __alcMixContext() can now remove it from playingSources array.
+    src->state = AL_STOPPED;
+    
+    // According to the spec:
+    //  "Removal of a given queue entry is not possible unless either the
+    //  Source is STOPPED (in which case then entire queue is considered
+    //  processed)..."
+    // !!! FIXME: compressed buffers need to be alerted that they are processed.
+    src->bufferPos = src->bufferCount;  // set whole queue to "processed".
+} // __alSourceStop_locked
+
 ALAPI ALvoid ALAPIENTRY alSourceStopv(ALsizei n, ALuint *_id)
 {
-	register ALcontext *ctx;
     if (n > 0)
 	{
-        ctx = __alGrabCurrentContext();
+	    register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
 		    while (n--)
     		{
-                register ALuint id = *_id;
-                if (id < AL_MAXSOURCES)
-	    		    __alSourceStop_locked(&ctx->sources[id]);
+                __alSourceStop_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
 		    } // while
             __alUngrabContext(ctx);
@@ -769,20 +796,33 @@ ALAPI ALvoid ALAPIENTRY alSourceStopv(ALsizei n, ALuint *_id)
     } // if
 } // alSourceStopv
 
+ALAPI ALvoid ALAPIENTRY alSourceStop(ALuint source)
+{
+    alSourceStopv(1, &source);
+} // alSourceStop
+
+
+// Source rewind...
+
+static inline ALvoid __alSourceRewind_locked(ALcontext *ctx, ALsource *src)
+{
+    if (src != NULL)
+    {
+        __alSourceStop_locked(ctx, src); // process buffers, etc.
+        src->state = AL_INITIAL;
+    } // if
+} // __alSourceRewind_locked
 
 ALAPI ALvoid ALAPIENTRY alSourceRewindv(ALsizei n, ALuint *_id)
 {
-	register ALcontext *ctx;
     if (n > 0)
 	{
-        ctx = __alGrabCurrentContext();
+	    register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
 		    while (n--)
     		{
-                register ALuint id = *_id;
-                if (id < AL_MAXSOURCES)
-	    		    __alSourceRewind_locked(&ctx->sources[id]);
+                __alSourceRewind_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
 		    } // while
             __alUngrabContext(ctx);
@@ -790,6 +830,13 @@ ALAPI ALvoid ALAPIENTRY alSourceRewindv(ALsizei n, ALuint *_id)
     } // if
 } // alSourceRewindv
 
+ALAPI ALvoid ALAPIENTRY alSourceRewind(ALuint source)
+{
+    alSourceRewindv(1, &source);
+} // alSourceRewind
+
+
+// Buffer queueing...
 
 ALAPI ALvoid ALAPIENTRY alSourceQueueBuffers (ALuint source, ALsizei n, ALuint *buffers)
 {

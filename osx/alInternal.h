@@ -241,8 +241,12 @@ typedef struct ALcontext_struct
     ALfloat dopplerFactor;
     ALfloat dopplerVelocity;
     ALfloat propagationSpeed;
-    ALsizei generatedSources;
+
     ALsource sources[AL_MAXSOURCES];
+    ALsizei generatedSources;
+
+    // pointers into (sources) to prevent cache thrashing.
+    ALsource *playingSources[AL_MAXSOURCES+1]; // +1 so it's null term'd.
 
     // !!! FIXME: According to the AL spec:
     // !!! FIXME:   "Unlike Sources and Listener, Buffer Objects can be shared
@@ -271,11 +275,16 @@ typedef struct ALdevice_struct
     #endif
     ALenum errorCode;
     ALlock deviceLock;
-    ALcontext contexts[AL_MAXCONTEXTS];
+    ALcontext contexts[AL_MAXCONTEXTS];  // static storage.
+    // pointers into (contexts) to prevent cache thrashing.
+    ALcontext *createdContexts[AL_MAXCONTEXTS+1]; // +1 so it's null-term'd.
 } ALdevice;
 
 
 // other stuff...
+
+#define DST_BLOCK_CTRL(size,count,stride) \
+            (((size) << 24) | ((count) << 16) | (stride))
 
 static inline float recip_estimate(float x)
 {
