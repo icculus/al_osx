@@ -3,6 +3,8 @@
  * CHANGELOG.
  */
 
+11102003 - alBufferData() now allocates enough to deal with unaligned
+           Altivec loads.
 10262003 - Replaced arbitrary upsamplers with something based on Bresenham's
            line drawing algorithm...you can think of the audio buffers like
            the X and Y points on a line: sample the same point in the source
