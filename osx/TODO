@@ -11,6 +11,7 @@
 - Look for FIXMEs.
 - Remove ov_read_callbacks abstraction and use ogg buffer directly to
   relieve memcpy pressure and reduce memory bandwidth.
+- Altivec mixer for mono8 is missing.
 
 // end of TODO ...
 
