@@ -3,6 +3,9 @@
  * CHANGELOG.
  */
 
+11122003 - Mono downsamplers now slow-but-correct...just a temporary hack to
+           fix incorrect render of a sentence in the ArmyOps SFAVWID lecture.
+           Cleaned up some tabs.
 11102003 - alBufferData() now allocates enough to deal with unaligned
            Altivec loads.
 10262003 - Replaced arbitrary upsamplers with something based on Bresenham's

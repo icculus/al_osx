@@ -17,7 +17,10 @@
   unaligned output at start of buffers, so we can avoid ever falling into a
   completely scalar mixing path. See mono mixers for reference.
 - Altivec mixer for stereo8 is missing.
-- Arbitrary downsampling is probably broken.
+- Arbitrary downsampling is broken/slow.
+- Don't set src->needsRecalculation unless alSource*() value is different from
+  current state...some games set state every frame even if nothing has changed,
+  forcing every playing source to recalc every pass through the mixer.
 
 // end of TODO ...
 
