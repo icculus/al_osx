@@ -679,6 +679,8 @@ UInt32 __alMixMono8_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float3
 
 UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
+    //register UInt32 ctrl_in = DST_BLOCK_CTRL(1, 2, 16);
+    //register UInt32 ctrl_out = DST_BLOCK_CTRL(1, 8, 16);
     register UInt32 buflen = (buf->allocatedSpace >> 1) - src->bufferReadIndex;
     register ALsizei overflow = 0;
     register SInt16 *in = ((SInt16 *) buf->mixData) + src->bufferReadIndex;
@@ -783,6 +785,9 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
         ld = vec_ld(0, in);  // read eight 16-bit samples.
         while (dst < max)
         {
+            //vec_dstt(in, ctrl_in, 0);
+            //vec_dstst(dst, ctrl_out, 1);
+
             // Get the sample points into a vector register...
             ld_overflow = vec_ld(16, in);  // read eight 16-bit samples.
 
@@ -819,13 +824,16 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
             v4 = vec_madd(v4, gainvec, mixvec4);
 
             // store converted version back to RAM...
-            vec_st(v1, 0, dst);
-            vec_st(v2, 16, dst);
-            vec_st(v3, 32, dst);
-            vec_st(v4, 48, dst);
+            vec_st(v1, 0x00, dst);
+            vec_st(v2, 0x10, dst);
+            vec_st(v3, 0x20, dst);
+            vec_st(v4, 0x30, dst);
             dst += 16;
             ld = ld_overflow;
         } // while
+
+        //vec_dss(0);
+        //vec_dss(1);
 
         // Handle overflow as scalar data.
         if (extra)
