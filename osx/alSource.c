@@ -60,16 +60,16 @@ static inline ALsource *__alFindSource_locked(ALcontext *ctx, ALuint srcid)
 {
     ALsource *retval;
 
-	if (srcid >= AL_MAXSOURCES)
+    if (srcid >= AL_MAXSOURCES)
     {
-	    __alSetError(AL_INVALID_NAME);
+        __alSetError(AL_INVALID_NAME);
         return(NULL);
     } // if
 
     retval = &ctx->sources[srcid];
     if ( !(retval->inUse) )
     {
-	    __alSetError(AL_INVALID_NAME);
+        __alSetError(AL_INVALID_NAME);
         return(NULL);
     } // if
 
@@ -131,51 +131,51 @@ static inline ALbuffer *__alGetPlayingBuffer(ALcontext *ctx, ALsource *src)
 
 ALAPI ALvoid ALAPIENTRY alGenSources(ALsizei _n, ALuint *sources)
 {
-	register ALsizei i = 0;
-	register ALsizei iCount = 0;
+    register ALsizei i = 0;
+    register ALsizei iCount = 0;
     register ALsizei n = _n;
 
     register ALcontext *ctx = __alGrabCurrentContext();
     if (ctx == NULL)
         return;
 
-	if (n > 0)
-	{
-		// check if have enough sources available
-		for (i = 1; i < AL_MAXSOURCES; i++)
-		{
+    if (n > 0)
+    {
+        // check if have enough sources available
+        for (i = 1; i < AL_MAXSOURCES; i++)
+        {
             if (!ctx->sources[i].inUse)
             {
-				iCount++;
+                iCount++;
                 if (iCount >= n)
                     break;
             } // if
-		} // for
-	
-		if (iCount >= n)
-		{
-			iCount = 0;
-			// allocate sources where possible...
-    		for (i = 1; i < AL_MAXSOURCES; i++)
-	    	{
+        } // for
+    
+        if (iCount >= n)
+        {
+            iCount = 0;
+            // allocate sources where possible...
+            for (i = 1; i < AL_MAXSOURCES; i++)
+            {
                 ALsource *src = &ctx->sources[i];
                 if (!src->inUse)
                 {
                     __alSourcesInit(src, 1);
                     src->inUse = AL_TRUE;
                     sources[iCount] = i;
-    				if (++iCount >= n)
+                    if (++iCount >= n)
                         break;
-				} // if
-			} // for
+                } // if
+            } // for
 
             ctx->generatedSources += n;
-		} // if
+        } // if
         else
-		{
-			__alSetError(AL_INVALID_VALUE);
-		} // else
-	} // if
+        {
+            __alSetError(AL_INVALID_VALUE);
+        } // else
+    } // if
 
     __alUngrabContext(ctx);
 } // alGenSources
@@ -187,39 +187,39 @@ ALAPI ALvoid ALAPIENTRY alDeleteSources(ALsizei _n, ALuint *sources)
     register ALsizei n = _n;
     register ALcontext *ctx;
 
-	if (n == 0)
-		return; // legal no-op.
+    if (n == 0)
+        return; // legal no-op.
 
-	else if (n < 0)
+    else if (n < 0)
     {
-		__alSetError(AL_INVALID_VALUE);
-		return;
-	} // else if
+        __alSetError(AL_INVALID_VALUE);
+        return;
+    } // else if
 
     ctx = __alGrabCurrentContext();
     if (ctx == NULL)
         return;
 
-	// check if it's even possible to delete the number of sources requested
+    // check if it's even possible to delete the number of sources requested
     if (n > ctx->generatedSources)
     {
         __alSetError(AL_INVALID_VALUE);
         __alUngrabContext(ctx);
-    	return;
+        return;
     } // if
     else
     {
         // !!! FIXME: Legal to delete a playing source? If so, we need to
         // !!! FIXME:  update ctx->playingSources...
-    	for (i = 0; i < n; i++)
-	    {
+        for (i = 0; i < n; i++)
+        {
             if ((sources[i] >= AL_MAXSOURCES) || (!ctx->sources[sources[i]].inUse))
             {
-    		    __alSetError(AL_INVALID_NAME);
+                __alSetError(AL_INVALID_NAME);
                 __alUngrabContext(ctx);
-    	    	return;
+                return;
             } // if
-    	} // for
+        } // for
     } // else
 
     // clear source/channel information
@@ -251,93 +251,93 @@ ALAPI ALboolean ALAPIENTRY alIsSource(ALuint source)
 ALAPI ALvoid ALAPIENTRY alSourcef (ALuint source, ALenum pname, ALfloat value)
 {
     ALsource *src;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
     register ALboolean needsRecalc = AL_FALSE;
 
     if (ctx != NULL)
-	{
-		switch(pname) 
-		{
-			case AL_PITCH:
-				if (value < 0.0f)
-					__alSetError(AL_INVALID_VALUE);
+    {
+        switch(pname) 
+        {
+            case AL_PITCH:
+                if (value < 0.0f)
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     needsRecalc = (src->pitch != value);
-					src->pitch = value;
+                    src->pitch = value;
                 } // else
-				break;
+                break;
 
-			case AL_GAIN:
-				if (value < 0.0f)
-					__alSetError(AL_INVALID_VALUE);
+            case AL_GAIN:
+                if (value < 0.0f)
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     needsRecalc = (src->gain != value);
-					src->gain = value;
+                    src->gain = value;
                 } // else
-				break;
+                break;
 
-			case AL_MAX_DISTANCE:
-				if (value < 0.0f)
-					__alSetError(AL_INVALID_VALUE);
+            case AL_MAX_DISTANCE:
+                if (value < 0.0f)
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     needsRecalc = (src->maxDistance != value);
-					src->maxDistance = value;
+                    src->maxDistance = value;
                 } // else
 
-			case AL_MIN_GAIN:
-				if ((value < 0.0f) || (value > 1.0f))
-					__alSetError(AL_INVALID_VALUE);
+            case AL_MIN_GAIN:
+                if ((value < 0.0f) || (value > 1.0f))
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     needsRecalc = (src->minGain != value);
-					src->minGain = value;
+                    src->minGain = value;
                 } // else
-				break;
+                break;
 
-			case AL_MAX_GAIN:
-				if ((value < 0.0f) || (value > 1.0f))
-					__alSetError(AL_INVALID_VALUE);
+            case AL_MAX_GAIN:
+                if ((value < 0.0f) || (value > 1.0f))
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     needsRecalc = (src->maxGain != value);
-					src->maxGain = value;
+                    src->maxGain = value;
                 } // else
-				break;
+                break;
 
-			case AL_ROLLOFF_FACTOR:
-				if (value <= 0.0f)
-					__alSetError(AL_INVALID_VALUE);
+            case AL_ROLLOFF_FACTOR:
+                if (value <= 0.0f)
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     if (value > 1.0f) value = 1.0f;  // !!! FIXME: don't clamp this.
                     needsRecalc = (src->rolloffFactor != value);
-					src->rolloffFactor = value;
+                    src->rolloffFactor = value;
                 } // else
-				break;
+                break;
 
-			case AL_REFERENCE_DISTANCE:
-				if (value <= 0.0f)
-					__alSetError(AL_INVALID_VALUE);
+            case AL_REFERENCE_DISTANCE:
+                if (value <= 0.0f)
+                    __alSetError(AL_INVALID_VALUE);
                 else
                 {
                     needsRecalc = (src->referenceDistance != value);
-					src->referenceDistance = value;
+                    src->referenceDistance = value;
                 } // else
-				break;
+                break;
 
-			default:
-				__alSetError(AL_INVALID_OPERATION);
-				break;
-		} // switch
+            default:
+                __alSetError(AL_INVALID_OPERATION);
+                break;
+        } // switch
 
         if (needsRecalc)
             src->needsRecalculation = AL_TRUE;
 
         __alUngrabContext(ctx);
-	} // if
+    } // if
 } // alSourcef
 
 
@@ -345,39 +345,39 @@ ALAPI ALvoid ALAPIENTRY alSourcefv (ALuint source, ALenum pname, ALfloat *values
 {
     ALsource *src;
     register ALboolean needsRecalc = AL_FALSE;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
     if (ctx != NULL)
-	{
-    	switch(pname) 
-	    {
-		    case AL_POSITION:
+    {
+        switch(pname) 
+        {
+            case AL_POSITION:
                 needsRecalc = ((src->Position[0] != values[0]) ||
                                (src->Position[1] != values[1]) ||
                                (src->Position[2] != values[2]));
                 if (needsRecalc)
                 {
-    	    		src->Position[0]=values[0];
-	    	    	src->Position[1]=values[1];
-		    	    src->Position[2]=values[2];
+                    src->Position[0]=values[0];
+                    src->Position[1]=values[1];
+                    src->Position[2]=values[2];
                 } // if
-		    	break;
+                break;
 
-    		case AL_VELOCITY:
+            case AL_VELOCITY:
                 needsRecalc = ((src->Velocity[0] != values[0]) ||
                                (src->Velocity[1] != values[1]) ||
                                (src->Velocity[2] != values[2]));
                 if (needsRecalc)
                 {
-    	    		src->Velocity[0]=values[0];
-	    	    	src->Velocity[1]=values[1];
-		    	    src->Velocity[2]=values[2];
+                    src->Velocity[0]=values[0];
+                    src->Velocity[1]=values[1];
+                    src->Velocity[2]=values[2];
                 } // if
-    			break;
+                break;
 
-	    	default:
-    			__alSetError(AL_INVALID_ENUM);
-    			break;
-	    } // switch
+            default:
+                __alSetError(AL_INVALID_ENUM);
+                break;
+        } // switch
 
         if (needsRecalc)
             src->needsRecalculation = AL_TRUE;
@@ -407,22 +407,22 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
     ALbuffer *buf;
     ALuint tmp;
     register ALboolean needsRecalc = AL_FALSE;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
 
     if (ctx != NULL)
-	{
-	    switch(pname) 
-		{
-			case AL_LOOPING:
-				src->looping = value;
-				break;
+    {
+        switch(pname) 
+        {
+            case AL_LOOPING:
+                src->looping = value;
+                break;
 
             // AL_BUFFER nukes the buffer queue and replaces it with a one-entry queue.
-			case AL_BUFFER:
-				if ((src->state != AL_STOPPED) && (src->state != AL_INITIAL))
-					__alSetError(AL_INVALID_OPERATION);
+            case AL_BUFFER:
+                if ((src->state != AL_STOPPED) && (src->state != AL_INITIAL))
+                    __alSetError(AL_INVALID_OPERATION);
                 else
-				{
+                {
                     if (value == 0)
                         src->bufferCount = src->bufferPos = 0;
                     else
@@ -433,18 +433,18 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
                                       (ctx->buffers[value - 1].inUse) );
 
                         if (valid)
-	    				{
+                        {
                             src->bufferCount = 1;
                             src->bufferPos = 0;
-					    	src->bufferQueue[0] = value;
-				    	} // if
+                            src->bufferQueue[0] = value;
+                        } // if
                         else
-		    			{
-	    					__alSetError(AL_INVALID_VALUE);
-    					} // else
+                        {
+                            __alSetError(AL_INVALID_VALUE);
+                        } // else
                     } // if
-				} // else
-				break;
+                } // else
+                break;
 
             case AL_SOURCE_RELATIVE:
                 if ((value != AL_FALSE) && (value != AL_TRUE))
@@ -474,114 +474,114 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
                 break;
             #endif
 
-			default:
-				__alSetError(AL_INVALID_ENUM);
-				break;
-		} // switch
+            default:
+                __alSetError(AL_INVALID_ENUM);
+                break;
+        } // switch
 
         if (needsRecalc)
             src->needsRecalculation = AL_TRUE;
 
         __alUngrabContext(ctx);
-	} // if
+    } // if
 } // alSourcei
 
 
 ALAPI ALvoid ALAPIENTRY alGetSourcef (ALuint source, ALenum pname, ALfloat *value)
 {
     ALsource *src;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
     if (ctx != NULL)
-	{
-		switch(pname) 
-		{
-			case AL_PITCH:
-				*value = src->pitch;
-				break;
-			case AL_GAIN:
-				*value = src->gain;
-				break;
-			case AL_MAX_DISTANCE:
-				*value = src->maxDistance;
-				break;
-			case AL_MIN_GAIN:
-				*value = src->minGain;
-				break;
-			case AL_MAX_GAIN:
-				*value = src->maxGain;
-				break;
-			case AL_ROLLOFF_FACTOR:
-				*value = src->rolloffFactor;
-				break;
-			case AL_REFERENCE_DISTANCE:
-				*value = src->referenceDistance;
-				break;
-			default:
-				__alSetError(AL_INVALID_ENUM);
-				break;
-		} // switch
+    {
+        switch(pname) 
+        {
+            case AL_PITCH:
+                *value = src->pitch;
+                break;
+            case AL_GAIN:
+                *value = src->gain;
+                break;
+            case AL_MAX_DISTANCE:
+                *value = src->maxDistance;
+                break;
+            case AL_MIN_GAIN:
+                *value = src->minGain;
+                break;
+            case AL_MAX_GAIN:
+                *value = src->maxGain;
+                break;
+            case AL_ROLLOFF_FACTOR:
+                *value = src->rolloffFactor;
+                break;
+            case AL_REFERENCE_DISTANCE:
+                *value = src->referenceDistance;
+                break;
+            default:
+                __alSetError(AL_INVALID_ENUM);
+                break;
+        } // switch
         __alUngrabContext(ctx);
-	} // if
+    } // if
 } // alGetSourcef
 
 
 ALAPI ALvoid ALAPIENTRY alGetSource3f (ALuint source, ALenum pname, ALfloat *v1, ALfloat *v2, ALfloat *v3)
 {
     ALsource *src;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
     if (ctx != NULL)
-	{
+    {
         switch (pname)
         {
-    		case AL_POSITION:
-	    		*v1 = src->Position[0];
-		    	*v2 = src->Position[1];
-			    *v3 = src->Position[2];
-    			break;
-	    	case AL_DIRECTION:
-		        __alSetError(AL_INVALID_ENUM); // cone functions not implemented yet
-		        break;
-    		case AL_VELOCITY:
-	    		*v1 = src->Velocity[0];
-		    	*v2 = src->Velocity[1];
-			    *v3 = src->Velocity[2];
-    			break;
-	    	default:
-		    	__alSetError(AL_INVALID_ENUM);
-			    break;
+            case AL_POSITION:
+                *v1 = src->Position[0];
+                *v2 = src->Position[1];
+                *v3 = src->Position[2];
+                break;
+            case AL_DIRECTION:
+                __alSetError(AL_INVALID_ENUM); // cone functions not implemented yet
+                break;
+            case AL_VELOCITY:
+                *v1 = src->Velocity[0];
+                *v2 = src->Velocity[1];
+                *v3 = src->Velocity[2];
+                break;
+            default:
+                __alSetError(AL_INVALID_ENUM);
+                break;
         } // switch
         __alUngrabContext(ctx);
-	} // if
+    } // if
 } // alGetSource3f
 
 
 ALAPI ALvoid ALAPIENTRY alGetSourcefv (ALuint source, ALenum pname, ALfloat *values)
 {
     ALsource *src;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
     if (ctx != NULL)
-	{
-		switch(pname)
-		{
-			case AL_POSITION:
-				values[0] = src->Position[0];
-				values[1] = src->Position[1];
-				values[2] = src->Position[2];
-				break;
-			case AL_VELOCITY:
-				values[0] = src->Velocity[0];
-				values[1] = src->Velocity[1];
-				values[2] = src->Velocity[2];
-				break;
-			case AL_DIRECTION:
-				__alSetError(AL_INVALID_ENUM);
-				break;
-			default:
-				__alSetError(AL_INVALID_ENUM);
-				break;
-		} // switch
+    {
+        switch(pname)
+        {
+            case AL_POSITION:
+                values[0] = src->Position[0];
+                values[1] = src->Position[1];
+                values[2] = src->Position[2];
+                break;
+            case AL_VELOCITY:
+                values[0] = src->Velocity[0];
+                values[1] = src->Velocity[1];
+                values[2] = src->Velocity[2];
+                break;
+            case AL_DIRECTION:
+                __alSetError(AL_INVALID_ENUM);
+                break;
+            default:
+                __alSetError(AL_INVALID_ENUM);
+                break;
+        } // switch
         __alUngrabContext(ctx);
-	} // if
+    } // if
 } // alGetSourcefv
 
 
@@ -590,30 +590,30 @@ ALAPI ALvoid ALAPIENTRY alGetSourcei (ALuint source, ALenum pname, ALint *value)
     ALsource *src;
     ALbuffer *buf;
     ALuint tmp;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
+    register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
 
     if (ctx != NULL)
-	{
-		switch(pname)
-		{
-			case AL_CONE_INNER_ANGLE:
-			case AL_CONE_OUTER_ANGLE:
-				__alSetError(AL_INVALID_ENUM); // not implemented yet
-				break;
-			case AL_LOOPING:
-				*value=src->looping;
-				break;
-			case AL_BUFFER:
+    {
+        switch(pname)
+        {
+            case AL_CONE_INNER_ANGLE:
+            case AL_CONE_OUTER_ANGLE:
+                __alSetError(AL_INVALID_ENUM); // not implemented yet
+                break;
+            case AL_LOOPING:
+                *value=src->looping;
+                break;
+            case AL_BUFFER:
                 // !!! FIXME: Is this the head of the queue or the first unprocessed buffer?
-				*value=src->bufferQueue[0];
-				break;
+                *value=src->bufferQueue[0];
+                break;
             case AL_SOURCE_RELATIVE:
                 *value=src->srcRelative;
-				break;
-			case AL_SOURCE_STATE:
-			    *value=src->state;
-			    break;
-			case AL_BUFFERS_QUEUED:
+                break;
+            case AL_SOURCE_STATE:
+                *value=src->state;
+                break;
+            case AL_BUFFERS_QUEUED:
                 // According to the spec:
                 // "This will return 0 if the current and only bufferName is 0."
                 if ((src->bufferCount == 1) && (src->bufferQueue[0] == 0))
@@ -621,7 +621,7 @@ ALAPI ALvoid ALAPIENTRY alGetSourcei (ALuint source, ALenum pname, ALint *value)
                 else
                     *value=src->bufferCount;
                 break;
-			case AL_BUFFERS_PROCESSED:
+            case AL_BUFFERS_PROCESSED:
                 *value=src->bufferPos;
                 break;
 
@@ -641,12 +641,12 @@ ALAPI ALvoid ALAPIENTRY alGetSourcei (ALuint source, ALenum pname, ALint *value)
                 break;
             #endif
 
-			default:
-				__alSetError(AL_INVALID_ENUM);
-				break;
-		} // switch
+            default:
+                __alSetError(AL_INVALID_ENUM);
+                break;
+        } // switch
         __alUngrabContext(ctx);
-	} // if
+    } // if
 } // alGetSourcei
 
 
@@ -698,17 +698,17 @@ static inline ALvoid __alSourcePlay_locked(ALcontext *ctx, ALsource *src)
 ALAPI ALvoid ALAPIENTRY alSourcePlayv(ALsizei n, ALuint *_id)
 {
     if (n > 0)
-	{
-	    register ALcontext *ctx = __alGrabCurrentContext();
+    {
+        register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
-		    while (n--)
-    		{
+            while (n--)
+            {
                 __alSourcePlay_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
-		    } // while
+            } // while
             __alUngrabContext(ctx);
-    	} // if
+        } // if
     } // if
 } // alSourcePlayv
 
@@ -734,17 +734,17 @@ static inline ALvoid __alSourcePause_locked(ALcontext *ctx, ALsource *src)
 ALAPI ALvoid ALAPIENTRY alSourcePausev(ALsizei n, ALuint *_id)
 {
     if (n > 0)
-	{
-	    register ALcontext *ctx = __alGrabCurrentContext();
+    {
+        register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
-		    while (n--)
-    		{
+            while (n--)
+            {
                 __alSourcePause_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
-		    } // while
+            } // while
             __alUngrabContext(ctx);
-    	} // if
+        } // if
     } // if
 } // alSourcePausev
 
@@ -780,17 +780,17 @@ static inline ALvoid __alSourceStop_locked(ALcontext *ctx, ALsource *src)
 ALAPI ALvoid ALAPIENTRY alSourceStopv(ALsizei n, ALuint *_id)
 {
     if (n > 0)
-	{
-	    register ALcontext *ctx = __alGrabCurrentContext();
+    {
+        register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
-		    while (n--)
-    		{
+            while (n--)
+            {
                 __alSourceStop_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
-		    } // while
+            } // while
             __alUngrabContext(ctx);
-    	} // if
+        } // if
     } // if
 } // alSourceStopv
 
@@ -814,17 +814,17 @@ static inline ALvoid __alSourceRewind_locked(ALcontext *ctx, ALsource *src)
 ALAPI ALvoid ALAPIENTRY alSourceRewindv(ALsizei n, ALuint *_id)
 {
     if (n > 0)
-	{
-	    register ALcontext *ctx = __alGrabCurrentContext();
+    {
+        register ALcontext *ctx = __alGrabCurrentContext();
         if (ctx != NULL)
         {
-		    while (n--)
-    		{
+            while (n--)
+            {
                 __alSourceRewind_locked(ctx, __alFindSource_locked(ctx, *_id));
                 _id++;
-		    } // while
+            } // while
             __alUngrabContext(ctx);
-    	} // if
+        } // if
     } // if
 } // alSourceRewindv
 
@@ -839,7 +839,7 @@ ALAPI ALvoid ALAPIENTRY alSourceRewind(ALuint source)
 ALAPI ALvoid ALAPIENTRY alSourceQueueBuffers (ALuint source, ALsizei n, ALuint *buffers)
 {
     ALsource *src;
-	register ALcontext *ctx;
+    register ALcontext *ctx;
 
     if (n < 0)
     {
@@ -871,7 +871,7 @@ ALAPI ALvoid ALAPIENTRY alSourceQueueBuffers (ALuint source, ALsizei n, ALuint *
 ALAPI ALvoid ALAPIENTRY alSourceUnqueueBuffers (ALuint source, ALsizei n, ALuint *buffers)
 {
     ALsource *src;
-	register ALcontext *ctx;
+    register ALcontext *ctx;
 
     if (n < 0)
     {
