@@ -492,8 +492,8 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
+            #if 0  // broken!
             maxincr = (int) ratio;
-
             while (dst != max)
             {
                 samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
@@ -504,6 +504,18 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
                 }
                 lastSamp = samp;    
             } // while
+            #else  // slow!
+            register float fincr = 0.0f;
+            ratio = recip_estimate(ratio);
+            while (dst != max)
+            {
+                samp = src[(int) round(fincr)] - 128;
+                *dst = (lastSamp + samp) >> 1;
+                dst++;
+                fincr += ratio;
+                lastSamp = samp;
+            } // while
+            #endif
         } // else
     } // if
 
@@ -576,6 +588,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
+            #if 0  // broken!
             maxincr = (int) ratio;
             while (dst != max)
             {
@@ -587,6 +600,18 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
                 }
                 lastSamp = samp; 
             } // while
+            #else  // slow!
+            register float fincr = 0.0f;
+            ratio = recip_estimate(ratio);
+            while (dst != max)
+            {
+                samp = src[(int) round(fincr)];
+                *dst = (lastSamp + samp) >> 1;
+                dst++;
+                fincr += ratio;
+                lastSamp = samp;
+            } // while
+            #endif
         } // else
     } // if
 
