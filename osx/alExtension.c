@@ -56,20 +56,32 @@ typedef struct
 
 static __alExtensionItem __alExtensionTable[] =
 {
+    #if SUPPORTS_AL_EXT_VORBIS
+    { "AL_EXT_vorbis", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
+    #endif
+
+    #if SUPPORTS_AL_EXT_FLOAT32
+    { "AL_EXT_float32", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
+    #endif
+
     #if SUPPORTS_AL_EXT_VECTOR_UNIT
     { "AL_EXT_vector_unit", extDetectVectorUnit, AL_FALSE, AL_FALSE },
     #endif
 
-    #if SUPPORTS_AL_EXT_VORBIS
-    { "AL_EXT_vorbis", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
+    #if SUPPORTS_AL_EXT_BUFFER_OFFSET
+    { "AL_EXT_buffer_offset", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
     #endif
 
     #if SUPPORTS_ALC_ENUMERATION_EXT
     { "ALC_ENUMERATION_EXT", extDetectAlwaysTrue, AL_TRUE, AL_TRUE },
     #endif
 
-    #if SUPPORTS_AL_EXT_BUFFER_OFFSET
-    { "AL_EXT_buffer_offset", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
+    #if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
+    { "ALC_EXT_speaker_attrs", extDetectAlwaysTrue, AL_TRUE, AL_TRUE },
+    #endif
+
+    #if SUPPORTS_ALC_EXT_CAPTURE
+    { "ALC_EXT_capture", extDetectAlwaysTrue, AL_TRUE, AL_TRUE },
     #endif
 
     //{ "AL_hint_MOJO", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
@@ -346,6 +358,11 @@ ALAPI ALenum ALAPIENTRY alGetEnumValue (const ALubyte *ename)
 
     #if SUPPORTS_AL_EXT_BUFFER_OFFSET
     ENUM_VALUE(AL_BUFFER_OFFSET_EXT);
+    #endif
+
+    #if SUPPORTS_AL_EXT_FLOAT32
+    ENUM_VALUE(AL_FORMAT_MONO_FLOAT32);
+    ENUM_VALUE(AL_FORMAT_STEREO_FLOAT32);
     #endif
 
 	return(AL_NONE);

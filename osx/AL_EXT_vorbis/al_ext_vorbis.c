@@ -94,13 +94,22 @@ static inline ALvoid __alMixVorbisMono(ALcontext *ctx, ALsource *src,
                                        Float32 *dst, Float32 *in, long samples,
                                        UInt32 devchannels)
 {
-    register Float32 gainLeft;
-    register Float32 gainRight;
     register Float32 sample;
+    register Float32 gain0;
+    register Float32 gain1;
+    register Float32 gain2;
+    register ALsizei channel0;
+    register ALsizei channel1;
+    register ALsizei channel2;
 
     __alRecalcMonoSource(ctx, src);
-	gainLeft = src->channelGains[0];
-	gainRight = src->channelGains[1];
+
+	gain0 = src->channelGain0;
+	gain1 = src->channelGain1;
+    gain2 = src->channelGain2;
+	channel0 = src->channel0;
+	channel1 = src->channel1;
+	channel2 = src->channel2;
 
 /* !!! FIXME: write altivec version and precalc whether we should use it.
     if ( (__alHasEnabledVectorUnit) && (channels == 2)
@@ -114,8 +123,9 @@ static inline ALvoid __alMixVorbisMono(ALcontext *ctx, ALsource *src,
     {
         sample = *in;
         in++;
-        dst[0] += sample * gainLeft;
-        dst[1] += sample * gainRight;
+        dst[channel0] += sample * gain0;
+        dst[channel1] += sample * gain1;
+        dst[channel2] += sample * gain2;
         dst += devchannels;
     } // while
 } // __alMixVorbisMono
@@ -125,7 +135,8 @@ static inline ALvoid __alMixVorbisStereo_altivec(ALcontext *ctx, ALsource *src,
                                                  Float32 *_dst, Float32 *_left,
                                                  Float32 *_right, long _samples)
 {
-    register Float32 gain = src->gain * ctx->listener.Gain;
+    register Float32 gainLeft;
+    register Float32 gainRight;
     register long samples = _samples;
     register Float32 *dst = _dst;
     register Float32 *left = _left;
@@ -141,8 +152,13 @@ static inline ALvoid __alMixVorbisStereo_altivec(ALcontext *ctx, ALsource *src,
     register vector unsigned char permute2 = vec_splat_u8(8);
     permute2 = vec_add(permute1, permute2);
 
-    if (EPSILON_EQUAL(gain, 1.0f))  // No attenuation, just interleave the samples and mix.
+	gainLeft = gainRight = src->gain * ctx->listener.Gain;
+    gainLeft *= ctx->device->speakergains[0];
+    gainRight *= ctx->device->speakergains[1];
+
+    if ( (EPSILON_EQUAL(gainLeft, 1.0f)) && (EPSILON_EQUAL(gainRight, 1.0f)) )
     {
+        // No attenuation, just interleave the samples and mix.
         while (samples >= 4)
         {
             vLeft = vec_ld(0, left);
@@ -179,7 +195,8 @@ static inline ALvoid __alMixVorbisStereo_altivec(ALcontext *ctx, ALsource *src,
             vector float v;
             float f[4];
         } conv;
-        conv.f[0] = conv.f[1] = conv.f[2] = conv.f[3] = gain;
+        conv.f[0] = conv.f[2] = gainLeft;
+        conv.f[1] = conv.f[3] = gainRight;
         vGain = vec_ld(0, &conv.v);
 
         while (samples >= 4)
@@ -202,8 +219,8 @@ static inline ALvoid __alMixVorbisStereo_altivec(ALcontext *ctx, ALsource *src,
 
         while (samples--)  // catch overflow.
         {
-            dst[0] += (*left) * gain;
-            dst[1] += (*right) * gain;
+            dst[0] += (*left) * gainLeft;
+            dst[1] += (*right) * gainRight;
             dst += 2;
             left++;
             right++;
@@ -224,10 +241,16 @@ static inline ALvoid __alMixVorbisStereo(ALcontext *ctx, ALsource *src,
     } // if
     else
     {
-        register Float32 gain = src->gain * ctx->listener.Gain;
+        register Float32 gainLeft;
+        register Float32 gainRight;
 
-        if (EPSILON_EQUAL(gain, 1.0f))  // No attenuation, just interleave the samples and mix.
+    	gainLeft = gainRight = src->gain * ctx->listener.Gain;
+        gainLeft *= ctx->device->speakergains[0];
+        gainRight *= ctx->device->speakergains[1];
+
+        if ( (EPSILON_EQUAL(gainLeft, 1.0f)) && (EPSILON_EQUAL(gainRight, 1.0f)) )
         {
+            // No attenuation, just interleave the samples and mix.
             while (samples--)
             {
                 dst[0] += *left;
@@ -241,8 +264,8 @@ static inline ALvoid __alMixVorbisStereo(ALcontext *ctx, ALsource *src,
         {
             while (samples--)
             {
-                dst[0] += (*left) * gain;
-                dst[1] += (*right) * gain;
+                dst[0] += (*left) * gainLeft;
+                dst[1] += (*right) * gainRight;
                 dst += devchans;
                 left++;
                 right++;
@@ -358,18 +381,13 @@ static ALvoid __alDeleteBufferVorbis(ALbuffer *buf)
 } // __alDeleteBufferVorbis
 
 
-ALboolean __alBufferDataFromVorbis(ALcontext *ctx, ALbuffer *buf,
-                                   ALvoid *_src, ALsizei size, ALsizei freq)
+ALvoid __alBufferDataFromVorbis(ALbuffer *buf)
 {
     buf->prepareBuffer = __alPrepareBufferVorbis;
     buf->processedBuffer = __alProcessedBufferVorbis;
     buf->rewindBuffer = __alRewindBufferVorbis;
     buf->deleteBuffer = __alDeleteBufferVorbis;
     buf->mixFunc = __alMixVorbis;
-
-    // !!! FIXME: Use vm_copy?
-    memcpy(buf->mixData, _src, buf->allocatedSpace);
-    return(AL_TRUE);
 } // __alBufferDataFromVorbis
 
 // end of al_ext_vorbis.c ...

@@ -46,6 +46,8 @@ ALvoid __alSourcesInit(ALsource *srcs, ALsizei count)
         src->maxGain = 1.0f;
         src->rolloffFactor = 1.0f;
         src->referenceDistance = 1.0f;
+        src->channel0 = 0;
+        src->channel1 = 1;
     } // for
 } // __alSourcesInit
 
@@ -669,6 +671,7 @@ static inline ALvoid __alSourcePlay_locked(ALcontext *ctx, ALsource *src)
             // !!! FIXME: Is this right? Restart the current buffer, or
             // !!! FIXME:  restart the queue?
             src->bufferReadIndex = 0;
+            src->bufferPos = 0;
 
             // Make sure we're in the playing list.
             //  We might already be there if we're INITIAL from a rewind

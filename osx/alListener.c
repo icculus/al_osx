@@ -31,11 +31,11 @@ ALvoid __alListenerInit(ALlistener *listener)
 	listener->Velocity[1] = 0.0f;
 	listener->Velocity[2] = 0.0f;
 	listener->Forward[0] = 0.0f;
-	listener->Forward[1] = 1.0f;
-	listener->Forward[2] = 0.0f;
+	listener->Forward[1] = 0.0f;
+	listener->Forward[2] = -1.0f;
 	listener->Up[0] = 0.0f;
-	listener->Up[1] = 0.0f;
-	listener->Up[2] = 1.0f ;
+	listener->Up[1] = 1.0f;
+	listener->Up[2] = 0.0f;
 	listener->Gain = 1.0f;
 	listener->Environment = 0.0f;
 }
@@ -109,6 +109,7 @@ ALAPI ALvoid ALAPIENTRY alListenerfv (ALenum pname, ALfloat *values)
             ctx->listener.Position[0]=values[0];
             ctx->listener.Position[1]=values[1];
             ctx->listener.Position[2]=values[2];
+//printf("listener now at %f %f %f\n", values[0],values[1],values[2]);
             break;
         case AL_VELOCITY:
             ctx->listener.Velocity[0]=values[0];
@@ -122,6 +123,7 @@ ALAPI ALvoid ALAPIENTRY alListenerfv (ALenum pname, ALfloat *values)
             ctx->listener.Up[0]=values[3];
             ctx->listener.Up[1]=values[4];
             ctx->listener.Up[2]=values[5];
+//printf("listener now facing %f %f %f %f %f %f\n", values[0],values[1],values[2],values[3],values[4],values[5]);
             break;
         default:
             __alSetError(AL_INVALID_ENUM);
@@ -132,7 +134,7 @@ ALAPI ALvoid ALAPIENTRY alListenerfv (ALenum pname, ALfloat *values)
 } // alListenerfv
 
 
-ALAPI ALvoid ALAPIENTRY alListeneri (ALenum pname, ALint value)
+ALAPI ALvoid ALAPIENTRY alListeneri(ALenum pname, ALint value)
 {		
     register ALcontext *ctx = __alGrabCurrentContext();
     if (ctx == NULL)

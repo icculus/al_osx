@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: stdio-based convenience library for opening/seeking/decoding
- last mod: $Id: vorbisfile.c,v 1.1 2003/10/12 23:51:40 root Exp $
+ last mod: $Id: vorbisfile.c,v 1.2 2004/01/27 18:39:13 icculus Exp $
 
  ********************************************************************/
 
@@ -1476,7 +1476,11 @@ long ov_read(OggVorbis_File *vf,char *buffer,int length,
     
     long channels=ov_info(vf,-1)->channels;
     long bytespersample=word * channels;
+
+    #if !MACOSX
     vorbis_fpu_control fpu;
+    #endif
+
     if(samples>length/bytespersample)samples=length/bytespersample;
 
     if(samples <= 0)

@@ -3,6 +3,34 @@
  * CHANGELOG.
  */
 
+01252004 - Fixed resamplers (ratio was backwards). ALC_EXT_capture work...
+           I am stunned at my complete inability to create a functional
+           ring buffer. Got capture to work for the first time! VoIP, here
+           we come!  :)  Fixed a dumb logic bug in stereo8 resampler.
+01232004 - Made resamplers more generic so they can be used with audio data
+           that isn't associated with an AL buffer. More ALC_EXT_capture work.
+01222004 - Work on ALC_EXT_capture.
+01202004 - alutInit() now returns immediately if it's already been called.
+           alSourcePlay() now restarts the buffer queue (not sure if this is
+           spec-compliant, though). Default listener orientation was
+           completely wrong (yikes!).
+01192004 - Yet More VBAP Work. Optimizations to mixing.
+01182004 - More VBAP work. Added TEST_LOOPING to test/test.c ...
+12042003 - More VBAP work. Just need to add VBAP3D triangulation code and
+           default speaker positioning code.
+12032003 - More VBAP work. Some optimization work. Split all the math
+           functions off into alMath.h (included by alInternal.h)...added
+           USE_G5_OPCODES and USE_G4_OPCODES (and comments) to makefile.
+           Cleaned up some warnings and enabled -Werror. Other cleanups.
+12012003 - Added altivec float32 mixers.
+11292003 - Some cleanup to pave the way to audio capture extension. Made
+           stereo and vorbis mixers respect speaker_attrs gains. Set up
+           speaker attributes (standard stereo, 2D VBAP, 3D VBAP). Still lack
+           the real math, though.
+11282003 - Added initial work for AL_EXT_float32 and AL_EXT_speaker_attr.
+           Neither is complete; AL_EXT_speaker_attr lacks the real math, and
+           AL_EXT_float32 needs working arbitrary resamplers and altivec
+           mixers...and perhaps some basic testing.  :)
 11242003 - Made some optimizations in alSoftware.c: always use recip sqrt
            with newton-raphson, and inline it...this is a good speed win.
            G5 users can build with USE_G5_SQRT for a little more speed, but

@@ -5,11 +5,21 @@
 #include <sys/stat.h>
 #include "AL/al.h"
 #include "AL/alc.h"
-#include "AL/alut.h"
+
+
+#define LOAD_VORBIS 0
+#define LOAD_WAV 1
+#define TEST_BUFFER_DATA 0
+#define DUMP_WAV 0
+#define TEST_AL_EXT_BUFFER_OFFSET 0
+#define TEST_SPATIALIZATION 1
+#define TEST_LOOPING 1
 
 int main(int argc, char **argv)
 {
     FILE *io;
+    ALCdevice *dev = NULL;
+    ALCcontext *ctx = NULL;
     ALenum format;
     ALvoid *data;
     ALsizei size;
@@ -23,6 +33,12 @@ int main(int argc, char **argv)
     ALboolean ext;
     ALint bits;
     ALint channels;
+
+    #if TEST_SPATIALIZATION
+    ALfloat pos3d[3];
+    ALfloat posoffset = 0.10f;
+    ALsizei axis = 0;
+    #endif
 
     #define printALCString(dev, ext) { ALenum e = alcGetEnumValue(dev, #ext); printf("%s: %s\n", #ext, alcGetString(dev, e)); }
     printALCString(NULL, ALC_DEFAULT_DEVICE_SPECIFIER);
@@ -45,7 +61,25 @@ int main(int argc, char **argv)
         } // while
     } // else
 
-    alutInit(&argc, (ALbyte **) argv);
+    dev = alcOpenDevice(getenv("OPENAL_DEVICE"));  // getenv()==NULL is okay.
+ 	if (dev != NULL)
+ 	{
+		ctx = alcCreateContext(dev, 0);
+		if (ctx != NULL)
+        {
+			alcMakeContextCurrent(ctx);
+            alcProcessContext(ctx);
+        } // if
+	} // if
+
+    if (ctx == NULL)
+    {
+        printf("Don't have an AL context. Aborting.\n");
+        if (dev)
+            alcCloseDevice(dev);
+        return(0);
+    } // if
+
     alGenSources(1, &sid);
     alGenBuffers(1, &bid);
 
@@ -64,12 +98,6 @@ int main(int argc, char **argv)
             alDisable(alenum);
         } // if
     } // if
-
-#define LOAD_VORBIS 1
-#define LOAD_WAV 0
-#define TEST_BUFFER_DATA 0
-#define DUMP_WAV 0
-#define TEST_AL_EXT_BUFFER_OFFSET 0
 
 #if LOAD_VORBIS
   {
@@ -97,20 +125,21 @@ int main(int argc, char **argv)
   }
 #else
   #if LOAD_WAV
+    // !!! FIXME: Arguably, this is illegal without alutInit().
     alutLoadWAVFile("sample.wav", &format, &data, &size, &freq, &loop);
   #else
   {
     struct stat statbuf;
-    io = fopen("sdlaudio.raw", "rb");
+    io = fopen("2.raw", "rb");
     if (io == NULL) { printf("file open failed.\n"); return(0); }
     fstat(fileno(io), &statbuf);
     size = statbuf.st_size;
     data = malloc(size);
     fread(data, size, 1, io);
     fclose(io);
-    format = AL_FORMAT_STEREO8;
-    freq = 22050;
-    loop = AL_TRUE;
+    format = alGetEnumValue((ALubyte *) "AL_FORMAT_MONO_FLOAT32");
+    freq = 44100;
+    loop = AL_FALSE;
   }
  #endif
 
@@ -121,12 +150,13 @@ int main(int argc, char **argv)
  #endif
 
  #if TEST_BUFFER_DATA
-    for (i = 0; i < 5000; i++)
+    for (i = 0; i < 1000; i++)
  #endif
         alBufferData(bid, format, data, size, freq);
 
 
  #if LOAD_WAV
+    // !!! FIXME: Arguably, this is illegal without alutInit().
     alutUnloadWAV(format, data, size, freq);
  #else
     free(data);
@@ -136,6 +166,10 @@ int main(int argc, char **argv)
     alGetBufferi(bid, AL_BITS, &bits);
     alGetBufferi(bid, AL_CHANNELS, &channels);
     alGetBufferi(bid, AL_FREQUENCY, &freq);
+
+#if TEST_LOOPING
+    loop = AL_TRUE;
+#endif
 
 #if !TEST_BUFFER_DATA
     alSourcei(sid, AL_BUFFER, bid);
@@ -168,14 +202,61 @@ int main(int argc, char **argv)
         } // if
         #endif
 
-        sleep(1);
+        #if TEST_SPATIALIZATION
+        alGetSourcefv(sid, AL_POSITION, pos3d);
+
+        pos3d[axis] += posoffset;
+
+        if (posoffset > 0.0f)
+        {
+            if (pos3d[axis] > 1.8f)
+            {
+                axis += 2;
+                if (axis >= 3)
+                {
+                    posoffset = -posoffset;
+                    axis = 0;
+                }
+            }
+        }
+        else
+        {
+            if (pos3d[axis] < -1.8f)
+            {
+                axis += 2;
+                if (axis >= 3)
+                {
+                    ALfloat l_or[6];
+                    alGetListenerfv(AL_ORIENTATION, l_or);
+                    l_or[2] = -l_or[2];
+                    alListenerfv(AL_ORIENTATION, l_or);
+                    printf("flipped listener!\n");
+                    posoffset = -posoffset;
+                    axis = 0;
+                }
+            }
+        }
+
+        printf("%f %s  %f %s  %f %s\n",
+                pos3d[0], pos3d[0] < 0.0f ? "left" : "right",
+                pos3d[1], pos3d[1] < 0.0f ? "down" : "up",
+                pos3d[2], pos3d[2] < 0.0f ? "back" : "front");
+        alSourcefv(sid, AL_POSITION, pos3d);
+        #endif
+
+        usleep(100000);
         alGetSourcei(sid, AL_SOURCE_STATE, &state);
     } // while
 #endif
 
     alDeleteSources(1, &sid);
     alDeleteBuffers(1, &bid);
-    alutExit();
+
+    alcSuspendContext(ctx);
+    alcMakeContextCurrent(NULL);
+    alcDestroyContext(ctx);
+    alcCloseDevice(dev);
+
     return(0);
 } // main
 

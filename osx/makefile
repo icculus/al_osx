@@ -1,19 +1,56 @@
 
-# Tweak to your liking.
+# Tweak the below options to your liking.
+#
+# Set OPTIMIZE to "true" for better performance, "false" if you are debugging
+#  the library. End-users will want to set this to "true".
+#
+# Mac users with G5's should set the USE_G5_OPCODES option to "true".
+#  This will use a faster, more precise square root calculation and use
+#  Altivec in places we wouldn't if we needed to check for availability, but
+#  the shared library will crash on a G4 or older CPU. We set a few generic
+#  compiler flags to encourage it to build code tuned for the G5, too.
+#
+# Mac users with G4's should set the USE_G4_OPCODES option to "true".
+#  This will use Altivec in places we wouldn't if we needed to check for
+#  availability, but the shared library will crash on a G3 or older CPU.
+#
+# Please note that if you don't set the USE_x_OPCODES makefile options, we'll
+#  still try to do the right thing, including detecting Altivec support and
+#  using it when it makes sense to do so...USE_G4_OPCODES just allows us to
+#  use _more_ Altivec, since we can guarantee your processor has it without
+#  the expense of looking for it.
+#
+# If you don't already know what USE_CCACHE does, set it to "false".
+#
+# If you don't already know what USE_VBAP does, set it to "true".
+#
+# If you don't already know what USE_IBM_COMPILER does, set it to "false".
+#
+# If you don't already know what the various SUPPORT_* things do,
+#  set them all to "true".
 
-OPTIMIZE := true
-USE_CCACHE := false
+OPTIMIZE := false
+USE_G4_OPCODES := false
+USE_G5_OPCODES := false
+USE_CCACHE := true
 USE_IBM_COMPILER := false
-SUPPORT_AL_EXT_VORBIS := true
+USE_VBAP := true
 SUPPORT_ALC_ENUMERATION_EXT := true
+SUPPORT_ALC_EXT_CAPTURE := true
+SUPPORT_ALC_EXT_SPEAKER_ATTRS := false
+SUPPORT_AL_EXT_VORBIS := true
 SUPPORT_AL_EXT_VECTOR_UNIT := true
 SUPPORT_AL_EXT_BUFFER_OFFSET := true
-
+SUPPORT_AL_EXT_FLOAT32 := true
 
 # ----------------------------------------------------------------------------
 # Don't touch this stuff unless you know what you're doing.
 
 LIB := openal.dylib
+
+ifeq ($(strip $(USE_G5_OPCODES)),true)
+  USE_G4_OPCODES := true
+endif
 
 ifeq ($(strip $(USE_IBM_COMPILER)),true)
   COMPILER := xlc
@@ -21,17 +58,27 @@ ifeq ($(strip $(USE_IBM_COMPILER)),true)
   EXTRALIBS += /opt/ibmcmp/vac/6.0/lib/libxl.a
   ifeq ($(strip $(OPTIMIZE)),true)
     OPTIMIZATIONS := -O5 -D_NDEBUG=1 -Q -qhot -qignerrno -qlibansi
+    ifeq ($(strip $(USE_G5_OPCODES),true)
+      $(error fill in ibm compiler G5-specific optimizations.)
+    endif
   else
     OPTIMIZATIONS := -O0
   endif
 else
   COMPILER := gcc
-  COMPILERFLAGS := -Wall -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
+  COMPILERFLAGS := -Wall -Werror -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
   ifeq ($(strip $(OPTIMIZE)),true)
     OPTIMIZATIONS := -O3 -D_NDEBUG=1 -falign-loops=16 -ffast-math -fexpensive-optimizations -fno-common -fno-math-errno
+    ifeq ($(strip $(USE_G5_OPCODES),true)
+      OPTIMIZATIONS += -mpowerpc-gpopt -mpowerpc64 -mcpu=970 -march=970 -DFORCE_STD_SQRT=1
+    endif
   else
     OPTIMIZATIONS := -O0
   endif
+endif
+
+ifeq ($(strip $(USE_G4_OPCODES)),true)
+  OPTIMIZATIONS += -DFORCE_ALTIVEC=1
 endif
 
 ifeq ($(strip $(USE_CCACHE)),true)
@@ -53,16 +100,36 @@ SRCS := alContext.c \
         alState.c \
 		ALut.c
 
-ifeq ($(strip $(SUPPORT_AL_EXT_VECTOR_UNIT)),true)
-    CFLAGS += -DSUPPORTS_AL_EXT_VECTOR_UNIT=1
+ifeq ($(strip $(USE_VBAP)),true)
+    CFLAGS += -DUSE_VBAP=1
+    SRCS += alVBAP.c
 endif
 
 ifeq ($(strip $(SUPPORT_ALC_ENUMERATION_EXT)),true)
     CFLAGS += -DSUPPORTS_ALC_ENUMERATION_EXT=1
 endif
 
+ifeq ($(strip $(SUPPORT_ALC_EXT_CAPTURE)),true)
+    CFLAGS += -DSUPPORTS_ALC_EXT_CAPTURE=1
+endif
+
+ifeq ($(strip $(SUPPORT_ALC_EXT_SPEAKER_ATTRS)),true)
+    CFLAGS += -DSUPPORTS_ALC_EXT_SPEAKER_ATTRS=1
+    ifneq ($(strip $(USE_VBAP)),true)
+        $(error ALC_EXT_speaker_attrs requires VBAP support.)
+    endif
+endif
+
+ifeq ($(strip $(SUPPORT_AL_EXT_VECTOR_UNIT)),true)
+    CFLAGS += -DSUPPORTS_AL_EXT_VECTOR_UNIT=1
+endif
+
 ifeq ($(strip $(SUPPORT_AL_EXT_BUFFER_OFFSET)),true)
     CFLAGS += -DSUPPORTS_AL_EXT_BUFFER_OFFSET=1
+endif
+
+ifeq ($(strip $(SUPPORT_AL_EXT_FLOAT32)),true)
+    CFLAGS += -DSUPPORTS_AL_EXT_FLOAT32=1
 endif
 
 ifeq ($(strip $(SUPPORT_AL_EXT_VORBIS)),true)
@@ -72,7 +139,7 @@ ifeq ($(strip $(SUPPORT_AL_EXT_VORBIS)),true)
     VORBIS_DIR := AL_EXT_vorbis/libvorbis-1.0-optimized
 	VORBIS_SRC := $(VORBIS_DIR)/lib
 	VORBIS_INC := $(VORBIS_DIR)/include
-    CFLAGS += -I$(OGG_INC) -I$(VORBIS_INC) -DSUPPORTS_AL_EXT_VORBIS=1
+    CFLAGS += -DSUPPORTS_AL_EXT_VORBIS=1 -I$(OGG_INC) -I$(VORBIS_INC)
     SRCS += $(OGG_SRC)/bitwise.c \
 			$(OGG_SRC)/framing.c \
             $(VORBIS_SRC)/analysis.c \

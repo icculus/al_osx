@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: residue backend 0, 1 and 2 implementation
- last mod: $Id: res0.c,v 1.1 2003/10/12 23:51:40 root Exp $
+ last mod: $Id: res0.c,v 1.2 2004/01/27 18:39:13 icculus Exp $
 
  ********************************************************************/
 
@@ -368,8 +368,8 @@ static long **_01class(vorbis_block *vb,vorbis_look_residue *vl,
   long i,j,k;
   vorbis_look_residue0 *look=(vorbis_look_residue0 *)vl;
   vorbis_info_residue0 *info=look->info;
-  vorbis_info           *vi=vb->vd->vi;
-  codec_setup_info      *ci=vi->codec_setup;
+  /*vorbis_info           *vi=vb->vd->vi;*/
+  /*codec_setup_info      *ci=vi->codec_setup;*/
 
   /* move all this setup out later */
   int samples_per_partition=info->grouping;
@@ -496,7 +496,7 @@ static int _01forward(vorbis_block *vb,vorbis_look_residue *vl,
   vorbis_look_residue0 *look=(vorbis_look_residue0 *)vl;
   vorbis_info_residue0 *info=look->info;
 
-  vorbis_dsp_state      *vd=vb->vd;
+  /*vorbis_dsp_state      *vd=vb->vd;*/
 
   /* move all this setup out later */
   int samples_per_partition=info->grouping;

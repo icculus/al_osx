@@ -27,6 +27,10 @@ apart from the standard openal.org Mac implementation:
   AL_BYTE_LOKI, for when you have to get down and dirty at the lowlevel of
   audio playback.
 - Supports IBM's G5 compiler.
+- Supports more-than-two speaker configurations...for example, you can
+  install an M-Audio Revolution 7.1 card and surround yourself with speakers;
+  audio sources rendered through OpenAL will correctly use speakers, so that
+  sounds played behind the listener will literally play behind you, too.
 
 This implementation is fairly robust, but in many ways can still be considered
 a "mini-AL" library...it is enough to play UT2003 well, but some features of a
@@ -43,4 +47,31 @@ mailing lists details for general OpenAL development questions unrelated to
 a specific implementation at www.openal.org.
 
 --ryan. (icculus@clutteredmind.org)
+
+
+External copyrights:
+
+Bits of code were inspired by, and cut-and-pasted from Ville Pulkki's Vector
+ Base Amplitude Panning (VBAP) source code. Those algorithms enable us to
+ efficiently spatialize audio sources across multiple speakers. Here is the
+ copyright that code falls under:
+
+Copyright 1998 by Ville Pulkki, Helsinki University of Technology.  All
+rights reserved.  
+
+The software may be used, distributed, and included to commercial
+products without any charges. When included to a commercial product,
+the method "Vector Base Amplitude Panning" and its developer Ville
+Pulkki must be referred to in documentation.
+
+This software is provided "as is", and Ville Pulkki or Helsinki
+University of Technology make no representations or warranties,
+expressed or implied. By way of example, but not limitation, Helsinki
+University of Technology or Ville Pulkki make no representations or
+warranties of merchantability or fitness for any particular purpose or
+that the use of the licensed software or documentation will not
+infringe any third party patents, copyrights, trademarks or other
+rights. The name of Ville Pulkki or Helsinki University of Technology
+may not be used in advertising or publicity pertaining to distribution
+of the software.
 

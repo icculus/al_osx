@@ -84,11 +84,16 @@ typedef struct                                  /* WAV Chunk-header */
 #pragma export on
 #endif
 
+static ALboolean alut_initted = AL_FALSE;
+
 ALUTAPI ALvoid ALUTAPIENTRY alutInit(ALint *argc,ALbyte **argv)
 {
 	ALCcontext *Context;
 	ALCdevice *Device;
 	
+    if (alut_initted)
+        return;
+
  	Device=alcOpenDevice(NULL);  //Open device
  	if (Device != NULL)
  	{
@@ -98,7 +103,13 @@ ALUTAPI ALvoid ALUTAPIENTRY alutInit(ALint *argc,ALbyte **argv)
         {
 			alcMakeContextCurrent(Context);  //Set active context
             alcProcessContext(Context);
+            alut_initted = AL_TRUE;
         } // if
+
+        else
+        {
+            alcCloseDevice(Device);
+        } // else
 	} // if
 } // alutInit
 
@@ -107,7 +118,10 @@ ALUTAPI ALvoid ALUTAPIENTRY alutExit(ALvoid)
 {
 	ALCcontext *Context;
 	ALCdevice *Device;
-	
+
+    if (!alut_initted)
+        return;
+
 	//Get active context
 	Context=alcGetCurrentContext();
 	//Get device for active context
@@ -120,6 +134,8 @@ ALUTAPI ALvoid ALUTAPIENTRY alutExit(ALvoid)
 	alcDestroyContext(Context);
 	//Close device
 	alcCloseDevice(Device);
+
+    alut_initted = AL_FALSE;
 }
 
 void SwapWords(unsigned int *puint)

@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: floor backend 1 implementation
- last mod: $Id: floor1.c,v 1.1 2003/10/12 23:51:40 root Exp $
+ last mod: $Id: floor1.c,v 1.2 2004/01/27 18:39:13 icculus Exp $
 
  ********************************************************************/
 
@@ -414,7 +414,7 @@ static int accumulate_fit(const float *flr,const float *mdct,
 			  int x0, int x1,lsfit_acc *a,
 			  int n,vorbis_info_floor1 *info){
   long i;
-  int quantized=vorbis_dBquant(flr+x0);
+  /*int quantized=vorbis_dBquant(flr+x0);*/
 
   long xa=0,ya=0,x2a=0,y2a=0,xya=0,na=0, xb=0,yb=0,x2b=0,y2b=0,xyb=0,nb=0;
 
@@ -593,7 +593,7 @@ static int post_Y(int *A,int *B,int pos){
   return (A[pos]+B[pos])>>1;
 }
 
-static int seq=0;
+/*static int seq=0;*/
 
 int *floor1_fit(vorbis_block *vb,vorbis_look_floor1 *look,
 			  const float *logmdct,   /* in */
@@ -760,7 +760,7 @@ int floor1_encode(vorbis_block *vb,vorbis_look_floor1 *look,
 
   long i,j;
   vorbis_info_floor1 *info=look->vi;
-  long n=look->n;
+  /*long n=look->n;*/
   long posts=look->posts;
   codec_setup_info *ci=vb->vd->vi->codec_setup;
   int out[VIF_POSIT+2];

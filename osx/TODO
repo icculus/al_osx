@@ -7,8 +7,6 @@
 - Capture extension
 - Pitch resampling.
 - Mono output.
-- AL_FORMAT_STEREO_FLOAT32_EXT extension
-- AL_FORMAT_MONO_FLOAT32_EXT extension
 - > 2 channel output.
 - Make alExtension.c not suck.
 - Device enumeration feels hacky.
@@ -22,6 +20,21 @@
 - Altivec mixer for stereo8 is missing.
 - Arbitrary downsampling is broken/slow.
 - Port to Linux.
+- How to render stereo sounds on > 2 channel setups?
+- Need test suite for mixers and resamplers.
+- Need documentation for various extensions I'm creating on a whim.
+- ALUT calls exit() if it can't load a WAV file!
+- Source's needsRecalculation must be set if the listener moves.
+- Spec compliance testing framework...?
+- Vorbis doesn't resample to device format before mixing!
+- Consolidate all the isInput/isOutput crap in alContext.c ...
+- Make all these new extensions use sane values their enums.
+- Can we get more efficiency out of capture by seeing if the
+  device is already being used for output and latching on to the mixer
+  callback?
+- The ring buffer is crap.
+- There's a lot of room for optimization in the capture callback.
+- There's a lot of untested codepaths in the capture extension.
 
 // end of TODO ...
 

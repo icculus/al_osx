@@ -34,10 +34,17 @@ ALboolean __alHasEnabledVectorUnit = AL_FALSE;
 //  isolated where reasonable to do so.
 static ALboolean __alcConfigureDevice(ALdevice *dev, const ALint *attrlist);
 static ALboolean __alcDoFirstInit(ALvoid);
-static ALubyte *__alcDetermineDefaultDeviceName(ALvoid);
+static ALubyte *__alcDetermineDefaultDeviceName(ALboolean isOutput);
+static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
+                                          ALboolean isOutput, ALsizei freq);
+
+#if SUPPORTS_ALC_EXT_CAPTURE
+static ALvoid __alcStartCaptureIO(ALdevice *device);
+static ALvoid __alcStopCaptureIO(ALdevice *device);
+#endif
 
 #if SUPPORTS_ALC_ENUMERATION_EXT
-static ALubyte *__alcDetermineDeviceNameList(ALvoid);
+static ALubyte *__alcDetermineDeviceNameList(ALboolean isOutput);
 #endif
 
 
@@ -93,7 +100,6 @@ static inline ALvoid __alUngrabDevice(ALdevice *dev)
 
 static ALenum __alErrorCode = AL_NO_ERROR;
 
-// !!! FIXME: These are per-device.
 static ALvoid __alcSetError( ALdevice *dev, ALenum err )
 {
     if (dev->errorCode == AL_NO_ERROR)
@@ -140,17 +146,25 @@ ALCAPI const ALubyte*  ALCAPIENTRY alcGetString(ALCdevice *device, ALCenum param
 
         // !!! FIXME: This isn't part of ALC_ENUMERATION_EXT, right?
         else if (param == ALC_DEFAULT_DEVICE_SPECIFIER)
-            return(__alcDetermineDefaultDeviceName());
+            return(__alcDetermineDefaultDeviceName(AL_TRUE));
 
         #if SUPPORTS_ALC_ENUMERATION_EXT
 		else if (param == ALC_DEVICE_SPECIFIER)
-            return(__alcDetermineDeviceNameList());
+            return(__alcDetermineDeviceNameList(AL_TRUE));
         #else
 		else if (param == ALC_DEVICE_SPECIFIER)
         {
             __alcSetError(NULL, ALC_INVALID_DEVICE);
             return(NULL);
         } // else if
+        #endif
+
+        #if SUPPORTS_ALC_EXT_CAPTURE
+        else if (param == ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER)
+            return(__alcDetermineDefaultDeviceName(AL_FALSE));
+
+		else if (param == ALC_CAPTURE_DEVICE_SPECIFIER)
+            return(__alcDetermineDeviceNameList(AL_FALSE));
         #endif
 
         __alcSetError((ALdevice *) device, ALC_INVALID_ENUM);
@@ -164,10 +178,42 @@ ALCAPI const ALubyte*  ALCAPIENTRY alcGetString(ALCdevice *device, ALCenum param
 } // alcGetString
 
 
-ALCAPI ALvoid    ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsizei size,ALint *data)
+ALCAPI ALvoid ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsizei size,ALint *data)
 {
-    // !!! FIXME: fill this in.
-    __alcSetError((ALdevice *) device, ALC_INVALID_ENUM);
+    ALdevice *dev = (ALdevice *) device;
+    switch (param)
+    {
+        #if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
+            case ALC_SPEAKER_COUNT:
+                if (size < sizeof (ALint))
+                    __alcSetError((ALdevice *) dev, ALC_INVALID_VALUE);
+                else
+                    *data = dev->speakers;
+                break;
+        #endif
+
+        #if SUPPORTS_ALC_EXT_CAPTURE
+            case ALC_CAPTURE_SAMPLES:
+                if (!dev->isInputDevice)
+                    __alcSetError((ALdevice *) dev, ALC_INVALID_DEVICE);
+                else if (size < sizeof (ALint))
+                    __alcSetError((ALdevice *) dev, ALC_INVALID_VALUE);
+                else
+                {
+                    ALsizei bufsize;
+                    __alGrabDevice(dev);
+                    bufsize = __alRingBufferSize(&dev->capture.ring);
+                    __alUngrabDevice(dev);
+                    *data = bufsize / dev->capture.formatSize;
+                } // else
+                break;
+        #endif
+
+        // !!! FIXME: fill this in.
+
+        default:
+            __alcSetError(dev, ALC_INVALID_ENUM);
+    } // switch
 } // alcGetInteger
 
 
@@ -332,6 +378,20 @@ ALCAPI ALvoid  * ALCAPIENTRY alcGetProcAddress(ALCdevice *device, ALubyte *funcN
     PROC_ADDRESS(alcGetContextsDevice);
     PROC_ADDRESS(alcGetString);
     PROC_ADDRESS(alcGetIntegerv);
+
+    #if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
+    PROC_ADDRESS(alcGetSpeakerfv);
+    PROC_ADDRESS(alcSpeakerfv);
+    #endif
+
+    #if SUPPORTS_ALC_EXT_CAPTURE
+    PROC_ADDRESS(alcCaptureOpenDevice);
+    PROC_ADDRESS(alcCaptureCloseDevice);
+    PROC_ADDRESS(alcCaptureStart);
+    PROC_ADDRESS(alcCaptureStop);
+    PROC_ADDRESS(alcCaptureSamples);
+    #endif
+
 	return(NULL);
 } // alcGetProcAddress
 
@@ -359,8 +419,100 @@ ALCAPI ALenum ALCAPIENTRY alcGetEnumValue(ALCdevice *device, ALubyte *enumName)
     ENUM_VALUE(ALC_FALSE);
     ENUM_VALUE(ALC_TRUE);
 
+    #if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
+    ENUM_VALUE(ALC_SPEAKER_COUNT);
+    ENUM_VALUE(ALC_SPEAKER_GAIN);
+    ENUM_VALUE(ALC_SPEAKER_AZIMUTH);
+    ENUM_VALUE(ALC_SPEAKER_ELEVATION);
+    #endif
+
+    #if SUPPORTS_ALC_EXT_CAPTURE
+    ENUM_VALUE(ALC_CAPTURE_SAMPLES);
+    ENUM_VALUE(ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
+    ENUM_VALUE(ALC_CAPTURE_DEVICE_SPECIFIER);
+    #endif
+
 	return ALC_NO_ERROR;
 } // alcGetEnumValue
+
+
+
+#if SUPPORTS_ALC_EXT_SPEAKER_ATTRS
+
+static inline ALboolean __alcInvalidSpeakerId(ALdevice *device, ALuint spk)
+{
+    return(spk >= device->speaker);
+} // __alcInvalidSpeakerId
+
+
+ALCAPI ALvoid ALCAPIENTRY alcGetSpeakerfv(ALCdevice *dev, ALuint spk, ALenum param, ALfloat *v)
+{
+    ALdevice *device = (ALdevice *) dev;
+    if (dev == NULL)
+        __alcSetError(device, ALC_INVALID_DEVICE);
+    else if (v == NULL)
+        __alcSetError(device, ALC_INVALID_VALUE);
+    else if (__alcInvalidSpeakerId(device, spk));
+        __alcSetError(device, ALC_INVALID_NAME);
+    else
+    {
+        switch (param)
+        {
+            case ALC_SPEAKER_GAIN:
+                *v = device->speakergains[spk];
+                break;
+
+            case ALC_SPEAKER_AZIMUTH:
+                *v = device->speakerazimuths[spk];
+                break;
+
+            case ALC_SPEAKER_ELEVATION:
+                *v = device->speakerelevations[spk];
+                break;
+
+            default:
+                __alcSetError(device, ALC_INVALID_ENUM);
+        } // switch
+    } // else
+} // alcGetSpeakerfv
+
+
+ALCAPI ALvoid ALCAPIENTRY alcSpeakerfv(ALCdevice *dev, ALuint spk, ALfloat *v)
+{
+    ALdevice *device = (ALdevice *) dev;
+    if (dev == NULL)
+        __alcSetError(device, ALC_INVALID_DEVICE);
+    else if (v == NULL)
+        __alcSetError(device, ALC_INVALID_VALUE);
+    else if (__alcInvalidSpeakerId(device, spk));
+        __alcSetError(device, ALC_INVALID_NAME);
+    else
+    {
+        switch (param)
+        {
+            case ALC_SPEAKER_GAIN:
+                if ((*v < 0.0f) || (*v > 1.0f))
+                    __alcSetError(device, ALC_INVALID_VALUE);
+                else
+                    device->speakergains[spk] = *v;
+                break;
+
+            case ALC_SPEAKER_AZIMUTH:
+                device->speakerazimuths[spk] = *v;
+                __alcTriangulateSpeakers(device);
+                break;
+
+            case ALC_SPEAKER_ELEVATION:
+                device->speakerelevations[spk] = *v;
+                __alcTriangulateSpeakers(device);
+                break;
+
+            default:
+                __alcSetError(device, ALC_INVALID_ENUM);
+        } // switch
+    } // else
+} // alcSpeakerfv
+#endif
 
 
 ALCAPI ALCcontext * ALCAPIENTRY alcProcessContext( ALCcontext *alcHandle )
@@ -371,14 +523,115 @@ ALCAPI ALCcontext * ALCAPIENTRY alcProcessContext( ALCcontext *alcHandle )
 } // alcProcessContext
 
 
-ALCAPI void ALCAPIENTRY alcSuspendContext( ALCcontext *alcHandle )
+ALCAPI ALvoid ALCAPIENTRY alcSuspendContext( ALCcontext *alcHandle )
 {
     ALcontext *ctx = (ALcontext *) alcHandle;
     ctx->suspended = AL_TRUE;
 } // alcSuspendContext
 
 
+#if SUPPORTS_ALC_EXT_CAPTURE
+ALCAPI ALCdevice* ALCAPIENTRY alcCaptureOpenDevice(const ALubyte *deviceName,
+                                                    ALuint freq, ALenum fmt,
+                                                    ALsizei bufsize)
+{
+    ALdevice *retval;
+    ALuint fmtsize = 0;
 
+    // !!! FIXME: Move to seperate function in alBuffer.c ?
+    if      (fmt == AL_FORMAT_MONO8) fmtsize = 1;
+    else if (fmt == AL_FORMAT_MONO16) fmtsize = 2;
+    else if (fmt == AL_FORMAT_STEREO8) fmtsize = 2;
+    else if (fmt == AL_FORMAT_STEREO16) fmtsize = 4;
+    #if SUPPORTS_AL_EXT_FLOAT32
+    else if (fmt == AL_FORMAT_MONO_FLOAT32) fmtsize = 4;
+    else if (fmt == AL_FORMAT_STEREO_FLOAT32) fmtsize = 8;
+    #endif
+    else return(NULL);
+
+    retval = (ALdevice *) __alcOpenDeviceInternal(deviceName, AL_FALSE, freq);
+    if (!retval)
+        return(NULL);
+
+    if (!__alRingBufferInit(&retval->capture.ring, bufsize * fmtsize))
+    {
+        alcCloseDevice((ALCdevice *) retval);
+        return(NULL);
+    } // if
+
+    retval->isInputDevice = AL_TRUE;
+    retval->capture.started = AL_FALSE;
+    retval->capture.formatSize = fmtsize;
+    retval->capture.format = fmt;
+    retval->capture.freq = freq;
+    retval->capture.resampled = NULL;
+    retval->capture.converted = NULL;
+
+    fprintf(stderr, "WARNING: ALC_EXT_capture specification is subject to change!\n\n");
+    return((ALCdevice *) retval);
+} // alcCaptureOpenDevice
+
+
+ALCAPI ALvoid ALCAPIENTRY alcCaptureCloseDevice(ALCdevice *device)
+{
+    ALdevice *dev = (ALdevice *) device;
+    __alRingBufferShutdown(&dev->capture.ring);
+    free(dev->capture.resampled);
+    free(dev->capture.converted);
+    dev->capture.resampled = NULL;
+    dev->capture.converted = NULL;
+    alcCloseDevice(device);
+} // alcCaptureCloseDevice
+
+
+ALCAPI ALvoid ALCAPIENTRY alcCaptureStart(ALCdevice *device)
+{
+    ALdevice *dev = (ALdevice *) device;
+    if (!dev->isInputDevice)
+        __alcSetError(dev, ALC_INVALID_DEVICE);
+    else if (!dev->capture.started)
+    {
+        dev->capture.started = AL_TRUE;
+        __alcStartCaptureIO(dev);
+    } // else if
+} // alcCaptureStart
+
+
+ALCAPI ALvoid ALCAPIENTRY alcCaptureStop(ALCdevice *device)
+{
+    ALdevice *dev = (ALdevice *) device;
+    if (!dev->isInputDevice)
+        __alcSetError(dev, ALC_INVALID_DEVICE);
+    else if (dev->capture.started)
+    {
+        dev->capture.started = AL_FALSE;
+        __alcStopCaptureIO(dev);
+    } // else if
+} // alcCaptureStart
+
+
+ALCAPI ALvoid ALCAPIENTRY alcCaptureSamples(ALCdevice *device, ALvoid *buf,
+                                            ALsizei samps)
+{
+    ALdevice *dev = (ALdevice *) device;
+    ALuint fmtsize = dev->capture.formatSize;
+    ALsizei avail;
+
+    if (!dev->isInputDevice)
+    {
+        __alcSetError(dev, ALC_INVALID_DEVICE);
+        return;
+    } // if
+
+    __alGrabDevice(dev);
+    avail = __alRingBufferSize(&dev->capture.ring) / fmtsize;
+    if (avail < samps)
+        __alcSetError(dev, AL_ILLEGAL_COMMAND);
+    else
+        __alRingBufferGet(&dev->capture.ring, (UInt8 *) buf, samps * fmtsize);
+    __alUngrabDevice(dev);
+} // alcCaptureSamples
+#endif
 
 //----------------------------------------------------------------------------
 // With the exception of some defines in the headers, I've tried to keep all
@@ -416,6 +669,13 @@ static ALboolean __alcDoFirstInit(ALvoid)
     if (__alcAlreadyDidFirstInit == AL_FALSE)
     {
         __alHasEnabledVectorUnit = __alDetectVectorUnit();
+
+        #if FORCE_ALTIVEC
+        // If this build forces Altivec usage, fail if we don't have it.
+        if (__alHasEnabledVectorUnit == AL_FALSE)
+            return(AL_FALSE);
+        #endif
+
         __alcAlreadyDidFirstInit = AL_TRUE;
         __alCalculateExtensions(AL_TRUE);
     } // if
@@ -482,23 +742,30 @@ static ALboolean __alcConfigureDevice(ALdevice *dev, const ALint *attrlist)
 } // __alcConfigureDevice
 
 
-static ALubyte *__alcDetermineDefaultDeviceName(ALvoid)
+static ALubyte *__alcDetermineDefaultDeviceName(ALboolean isOutput)
 {
     // !!! FIXME: Race condition! mutex this!
+    Boolean isInput = isOutput ? FALSE : TRUE;
     Boolean outWritable;
     OSStatus error;
     UInt32 count;
     AudioDeviceID dev;
     static char *buf = NULL;  // !!! FIXME: Minor memory leak.
+    AudioHardwarePropertyID defDev;
 
     if (buf) return(buf);  // !!! FIXME: Can the default change during the lifetime of the system?
 
+    if (isOutput)
+        defDev = kAudioHardwarePropertyDefaultOutputDevice;
+    else
+        defDev = kAudioHardwarePropertyDefaultInputDevice;
+
     count = sizeof(AudioDeviceID);
-    error = AudioHardwareGetProperty(kAudioHardwarePropertyDefaultOutputDevice, &count, &dev);
+    error = AudioHardwareGetProperty(defDev, &count, &dev);
     if (error != kAudioHardwareNoError)
         return(NULL);
 
-    error = AudioDeviceGetPropertyInfo(dev, 0, 0, kAudioDevicePropertyDeviceName, &count, &outWritable);
+    error = AudioDeviceGetPropertyInfo(dev, 0, isInput, kAudioDevicePropertyDeviceName, &count, &outWritable);
     if (error != kAudioHardwareNoError)
         return(NULL);
 
@@ -506,7 +773,7 @@ static ALubyte *__alcDetermineDefaultDeviceName(ALvoid)
     if (buf == NULL)
         return(NULL);
 
-    error = AudioDeviceGetProperty(dev, 0, 0, kAudioDevicePropertyDeviceName, &count, buf);
+    error = AudioDeviceGetProperty(dev, 0, isInput, kAudioDevicePropertyDeviceName, &count, buf);
     if (error != kAudioHardwareNoError)
         return(NULL);
 
@@ -515,9 +782,10 @@ static ALubyte *__alcDetermineDefaultDeviceName(ALvoid)
 
 
 #if SUPPORTS_ALC_ENUMERATION_EXT
-static ALubyte *__alcDetermineDeviceNameList(ALvoid)
+static ALubyte *__alcDetermineDeviceNameList(ALboolean isOutput)
 {
     // !!! FIXME: Race condition! mutex this!
+    Boolean isInput = isOutput ? FALSE : TRUE;
     Boolean outWritable;
     OSStatus error;
     UInt32 count;
@@ -547,12 +815,12 @@ static ALubyte *__alcDetermineDeviceNameList(ALvoid)
     if (error != kAudioHardwareNoError)
         return(AL_FALSE);
 
-    for (i = 0; i < count; i++)
+    for (i = 0; i < max; i++)
     {
         void *ptr;
         AudioDeviceID dev = devs[i];
 
-        error = AudioDeviceGetPropertyInfo(dev, 0, 0, kAudioDevicePropertyDeviceName, &count, &outWritable);
+        error = AudioDeviceGetPropertyInfo(dev, 0, isInput, kAudioDevicePropertyDeviceName, &count, &outWritable);
         if (error != kAudioHardwareNoError)
             continue;
 
@@ -562,12 +830,20 @@ static ALubyte *__alcDetermineDeviceNameList(ALvoid)
 
         buf = ptr;
 
-        error = AudioDeviceGetProperty(dev, 0, 0, kAudioDevicePropertyDeviceName, &count, buf + len);
+        error = AudioDeviceGetProperty(dev, 0, isInput, kAudioDevicePropertyDeviceName, &count, buf + len);
         if (error != kAudioHardwareNoError)
             continue;
 
         len += count;
         buf[len] = '\0';  // double null terminate.
+
+        // !!! FIXME:
+        // For input devices, we need to enumerate all data sources, so
+        //  that (say) both the microphone and line-in on a given device are
+        //  exposed to the application.
+        if (isInput)
+        {
+        } // if
     } // for
 
     return(buf);
@@ -575,8 +851,11 @@ static ALubyte *__alcDetermineDeviceNameList(ALvoid)
 #endif
 
 
-static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName, AudioDeviceID *devID)
+static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName,
+                                        ALboolean isOutput,
+                                        AudioDeviceID *devID)
 {
+    Boolean isInput = isOutput ? FALSE : TRUE;
 	Boolean	outWritable;
     OSStatus error;
     UInt32 count;
@@ -589,8 +868,14 @@ static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName, AudioDeviceID
     // no preference; use system default device.
     if (deviceName == NULL)
     {
-    	count = sizeof(AudioDeviceID);
-        error = AudioHardwareGetProperty(kAudioHardwarePropertyDefaultOutputDevice, &count, devID);
+        AudioHardwarePropertyID defDev;
+        if (isOutput)
+            defDev = kAudioHardwarePropertyDefaultOutputDevice;
+        else
+            defDev = kAudioHardwarePropertyDefaultInputDevice;
+
+    	count = sizeof (AudioDeviceID);
+        error = AudioHardwareGetProperty(defDev, &count, devID);
         return((error == kAudioHardwareNoError) ? AL_TRUE : AL_FALSE);
     } // if
 
@@ -619,14 +904,14 @@ static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName, AudioDeviceID
     {
         AudioDeviceID dev = devs[i];
 
-        error = AudioDeviceGetPropertyInfo(dev, 0, 0, kAudioDevicePropertyDeviceName, &count, &outWritable);
+        error = AudioDeviceGetPropertyInfo(dev, 0, isInput, kAudioDevicePropertyDeviceName, &count, &outWritable);
         if (error != kAudioHardwareNoError)
             continue;
 
         if (count != nameLen)
             continue;   // can't be this one; name is different size.
 
-        error = AudioDeviceGetProperty(dev, 0, 0, kAudioDevicePropertyDeviceName, &count, nameBuf);
+        error = AudioDeviceGetProperty(dev, 0, isInput, kAudioDevicePropertyDeviceName, &count, nameBuf);
         if (error != kAudioHardwareNoError)
             continue;
 
@@ -755,6 +1040,117 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
 } // __alcMixContext
 
 
+#if SUPPORTS_ALC_EXT_CAPTURE
+static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  inNow, const AudioBufferList*  inInputData, const AudioTimeStamp*  inInputTime, AudioBufferList*  outOutputData, const AudioTimeStamp* inOutputTime, void* inClientData)
+{
+    ALdevice *dev = (ALdevice *) inClientData;
+    Float32 *resampled = NULL;
+    UInt8 *converted = NULL;
+    ALsizei samples = 0;
+    ALsizei resampsize = 0;
+    ALboolean doConvert = AL_TRUE;
+
+    assert(dev->isInputDevice);
+    assert(dev->capture.started);
+
+    if (!inInputData)
+        return kAudioHardwareNoError;
+
+    samples = inInputData->mBuffers[0].mDataByteSize / (sizeof (Float32) * dev->speakers);
+    if ((ALint) dev->streamFormat.mSampleRate == dev->capture.freq)
+    {
+        resampled = inInputData->mBuffers[0].mData;
+        resampsize = inInputData->mBuffers[0].mDataByteSize;
+    } // if
+    else
+    {
+    	ALfloat ratio = ((ALfloat) dev->capture.freq) / ((ALfloat) dev->streamFormat.mSampleRate);
+        samples = (ALsizei) (((ALfloat) samples) * ratio);
+        resampsize = samples * (sizeof (Float32) * dev->speakers);
+
+        // !!! FIXME: Allocate this in alcCaptureOpenDevice()!
+        if (dev->capture.resampled == NULL)
+        {
+            void *ptr = malloc(resampsize);
+            if (ptr == NULL)
+                return kAudioHardwareNoError;
+            dev->capture.resampled = (UInt8 *) ptr;
+        } // if
+
+        resampled = (Float32 *) dev->capture.resampled;
+        // !!! FIXME: Handle > 2 channel?
+        if (dev->speakers == 1)
+        {
+            __alResampleMonoFloat32(inInputData->mBuffers[0].mData,
+                                    inInputData->mBuffers[0].mDataByteSize,
+                                    resampled, resampsize);
+        } // if
+        else
+        {
+            __alResampleStereoFloat32(inInputData->mBuffers[0].mData,
+                                      inInputData->mBuffers[0].mDataByteSize,
+                                      resampled, resampsize);
+        } // else
+    } // else
+
+    #if SUPPORTS_AL_EXT_FLOAT32
+    if (dev->speakers == 1)
+        doConvert = (dev->capture.format != AL_FORMAT_MONO_FLOAT32);
+    else if (dev->speakers == 2)
+        doConvert = (dev->capture.format != AL_FORMAT_STEREO_FLOAT32);
+    #endif
+
+    converted = (UInt8 *) resampled;
+    if (doConvert)
+    {
+        ALboolean rc = AL_FALSE;
+        // !!! FIXME: Allocate this in alcCaptureOpenDevice()!
+        if (dev->capture.converted == NULL)
+        {
+            void *ptr = malloc(samples * dev->capture.formatSize);
+            if (ptr == NULL)
+                return kAudioHardwareNoError;
+            dev->capture.converted = (UInt8 *) ptr;
+        } // if
+        converted = dev->capture.converted;
+
+        if (dev->speakers == 1)
+        {
+            rc = __alConvertFromMonoFloat32(resampled, converted,
+                                            dev->capture.format, samples);
+        } // if
+        else
+        {
+            rc = __alConvertFromStereoFloat32(resampled, converted,
+                                              dev->capture.format, samples);
+        } // else
+
+        if (!rc)
+            return kAudioHardwareNoError;  // !!! FIXME
+    } // if
+
+    __alGrabDevice(dev);
+    __alRingBufferPut(&dev->capture.ring, converted,
+                      dev->capture.formatSize * samples);
+    __alUngrabDevice(dev);
+
+    return kAudioHardwareNoError;
+} // __alcCaptureDevice
+
+static ALvoid __alcStartCaptureIO(ALdevice *device)
+{
+    assert(device->isInputDevice);
+    AudioDeviceStart(device->device, __alcCaptureDevice);
+} // __alcStartCaptureIO
+
+static ALvoid __alcStopCaptureIO(ALdevice *device)
+{
+    assert(device->isInputDevice);
+    AudioDeviceStop(device->device, __alcCaptureDevice);
+} // __alcStopCaptureIO
+#endif
+
+
 static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  inNow, const AudioBufferList*  inInputData, const AudioTimeStamp*  inInputTime, AudioBufferList*  outOutputData, const AudioTimeStamp* inOutputTime, void* inClientData)
 {    
     // !!! FIXME: As a fastpath, return immediately if hardware volume is muted.
@@ -771,12 +1167,12 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
     // !!! FIXME: Is the output buffer initialized, or do I need to initialize it in fast paths?
 
     ALdevice *dev = (ALdevice *) inClientData;
-    __alGrabDevice(dev);  // potentially long lock...
-
     ALcontext **ctxs;
     UInt8 *outDataPtr = (UInt8 *) (outOutputData->mBuffers[0].mData);
     UInt32 frames = outOutputData->mBuffers[0].mDataByteSize;
     UInt32 framesize;
+
+    __alGrabDevice(dev);  // potentially long lock...
 
     framesize = (sizeof (Float32) * dev->streamFormat.mChannelsPerFrame);
     frames /= framesize;
@@ -798,13 +1194,120 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
 } // __alcMixDevice
 
 
-#if HAVE_PRAGMA_EXPORT
-#pragma export on
-#endif
-
-ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
+static ALvoid __alcSetSpeakerDefaults(ALdevice *dev)
 {
+    UInt32 i = 0;
+
+    dev->speakerConfig = SPKCFG_STDSTEREO;  // sane default.
+
+/* !!! FIXME: Coerce speaker positions out of CoreAudio.
+	AudioDeviceID device = dev->device;
+    AudioChannelLayout *layout;
+	Boolean	writable;
+    OSStatus error;
+    UInt32 count;
+
+    dev->speakerConfig = SPKCFG_STDSTEREO;  // sane default.
+
+    error = AudioDeviceGetPropertyInfo(device, 0, 0,
+                            kAudioDevicePropertyPreferredChannelLayout,
+                            &count, &writable);
+
+    if (error != kAudioHardwareNoError)
+        count = 0;
+    else
+    {
+        layout = (AudioChannelLayout *) alloca(count);
+        error = AudioDeviceGetProperty(device, 0, 0,
+                            kAudioDevicePropertyPreferredChannelLayout,
+                            &count, layout);
+
+        if (error == kAudioHardwareNoError)
+            count = 0;
+        else
+        {
+            count = layout->mNumberChannelDescriptions;
+            if (count > dev->speakers)
+                count = dev->speakers;
+        } // else
+    } // else
+
+    for (i = 0; i < count; i++)
+    {
+        UInt32 chanFlags = layout->mChannelDescriptions[i].mChannelFlags;
+        Float32 *coreAudio = layout->mChannelDescriptions[i].mCoordinates;
+        dev->speakergains[i] = 1.0f;
+
+        if (chanFlags & kAudioChannelFlags_RectangularCoordinates)
+        {
+            // CoreAudio appears to use a right-handed coordinate system,
+            //  like OpenAL, but specifies it as X, Z, Y, not X, Y, Z.
+            openAL[0] = coreAudio[0];
+            openAL[1] = coreAudio[2];
+            openAL[2] = coreAudio[1];
+        } // if
+
+        else if (chanFlags & kAudioChannelFlags_SphericalCoordinates)
+        {
+            //0 == azimuth
+            //1 == elevation
+            //2 == distance
+            assert(0);   // !!! FIXME: write me!
+        } // if
+
+        else
+        {
+            // !!! FIXME: Sane position defaults.
+        } // else
+
+        openAL += 3;
+        azi += aziincr;
+    } // for
+*/
+
+    while (i < dev->speakers)   // fill in sane defaults if needed.
+    {
+        dev->speakerelevations[i] = 0.0f;
+        dev->speakergains[i] = 1.0f;
+        i++;
+    } // while
+    if (dev->speakers == 1)
+        dev->speakerazimuths[0] = 0.0f;
+    else if (dev->speakers == 2)
+    {
+        dev->speakerazimuths[0] = -90.0f;
+        dev->speakerazimuths[1] = 90.0f;
+    } // else if
+    else if (dev->speakers == 8)
+    {
+        dev->speakerazimuths[0] = -35.0f;
+        dev->speakerazimuths[1] = 35.0f;
+        dev->speakerazimuths[2] = -80.0f;
+        dev->speakerazimuths[3] = 80.0f;
+        dev->speakerazimuths[4] = -125.0f;
+        dev->speakerazimuths[5] = 125.0f;
+        dev->speakerazimuths[6] = -170.0f;
+        dev->speakerazimuths[7] = 170.0f;
+    }
+    else
+    {
+        assert(0);
+    }
+
+    // !!! FIXME: Override default speaker attributes with config file.
+
+    #if USE_VBAP
+    __alcTriangulateSpeakers(dev);
+    #endif
+} // __alcGetDefaultSpeakerPos
+
+
+static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
+                                          ALboolean isOutput, ALsizei freq)
+{
+    Boolean isInput = isOutput ? FALSE : TRUE;
 	AudioDeviceID device;
+    AudioDeviceIOProc ioproc;
 	Boolean	writable;
     OSStatus error;
     UInt32 count;
@@ -813,84 +1316,118 @@ ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
     ALdevice *retval = NULL;
     AudioStreamBasicDescription	*streamFormats;
 
-    __alcDoFirstInit();
-
-    if (__alcDetermineDeviceID(deviceName, &device) == AL_FALSE)
+    if (!__alcDoFirstInit())
         return(NULL);
 
-    error = AudioDeviceGetPropertyInfo(device, 0, 0, kAudioDevicePropertyStreamFormats, &count, &writable);
+    if (__alcDetermineDeviceID(deviceName, isOutput, &device) == AL_FALSE)
+        return(NULL);
+
+    error = AudioDeviceGetPropertyInfo(device, 0, isInput, kAudioDevicePropertyStreamFormats, &count, &writable);
     if (error != kAudioHardwareNoError) return(NULL);
     streamFormats = (AudioStreamBasicDescription *) alloca(count);
-    error = AudioDeviceGetProperty(device, 0, 0, kAudioDevicePropertyStreamFormats, &count, streamFormats);
+    error = AudioDeviceGetProperty(device, 0, isInput, kAudioDevicePropertyStreamFormats, &count, streamFormats);
 
-    error = AudioDeviceGetPropertyInfo(device, 0, 0, kAudioDevicePropertyStreamFormat, &count, &writable);
+    error = AudioDeviceGetPropertyInfo(device, 0, isInput, kAudioDevicePropertyStreamFormat, &count, &writable);
     if (error != kAudioHardwareNoError) return(NULL);
     if (count != sizeof (streamFormat)) return(NULL);
-    error = AudioDeviceGetProperty(device, 0, 0, kAudioDevicePropertyStreamFormat, &count, &streamFormat);
+    error = AudioDeviceGetProperty(device, 0, isInput, kAudioDevicePropertyStreamFormat, &count, &streamFormat);
     if (error != kAudioHardwareNoError) return(NULL);
 
-
-#if 1
-    // !!! FIXME: This is a bad assumption. Having non-stereo output complicates the hell out of things
-    // !!! FIXME:  (where are speakers positioned? How can we efficiently spatialize audio between an
-    // !!! FIXME:  arbitrary number of outputs? etc), so for now, try to force output to two speakers.
-    // !!! FIXME:  If we can't, we'll write silence to all but the first two channels and pray for the
-    // !!! FIXME:  best.
-    if ((streamFormat.mChannelsPerFrame != 2) && (writable))
+    if ( (freq > 0) && (((ALsizei) streamFormat.mSampleRate) != freq) )
     {
-        UInt32 tmp = streamFormat.mChannelsPerFrame;
-        streamFormat.mChannelsPerFrame = 2;
-        error = AudioDeviceSetProperty(device, NULL, 0, 0, kAudioDevicePropertyStreamFormat, count, &streamFormat);
+        Float64 tmpf64 = streamFormat.mSampleRate;
+        streamFormat.mSampleRate = (Float64) freq;
+        error = AudioDeviceSetProperty(device, NULL, 0, isInput, kAudioDevicePropertyStreamFormat, count, &streamFormat);
         if (error != kAudioHardwareNoError)
-            streamFormat.mChannelsPerFrame = tmp;  // oh well, we tried.
+            streamFormat.mSampleRate = tmpf64;  // oh well, we tried.
     } // if
 
-    // !!! FIXME: we can't support mono output at the moment.
-    // !!! FIXME: This is a matter of improving the audio callback.
-    if (streamFormat.mChannelsPerFrame == 1)
+    // !!! FIXME: we don't support mono output at the moment.
+    // !!! FIXME: This is a matter of writing mixers that output mono.
+    if ((isOutput) && (streamFormat.mChannelsPerFrame == 1))
         return(NULL);
-#endif
+
+    // !!! FIXME: we don't support > 2 channels input at the moment.
+    if ((isInput) && (streamFormat.mChannelsPerFrame > 2))
+        return(NULL);
+
+    // As of MacOS X 10.3, there is no way to get anything _but_ a Float32
+    //  output buffer, as thus, we've got no other mixers written...put some
+    //  sanity checks in place in case this ever changes...
+
+    if (streamFormat.mFormatID != kAudioFormatLinearPCM)
+        return(NULL);
+
+    if (streamFormat.mBitsPerChannel != 32)
+        return(NULL);
+
+    if ((streamFormat.mFormatFlags & kLinearPCMFormatFlagIsFloat) == 0)
+        return(NULL);
 
     // !!! FIXME: Find magic numbers by sample rate/channel...
-    bufsize = (1024 * sizeof (Float32)) * streamFormat.mChannelsPerFrame;
-    count = sizeof (UInt32);
-    AudioDeviceSetProperty(device, NULL, 0, 0, kAudioDevicePropertyBufferSize, count, &bufsize);
+    if (isOutput)
+    {
+        bufsize = (1024 * sizeof (Float32)) * streamFormat.mChannelsPerFrame;
+        count = sizeof (UInt32);
+        AudioDeviceSetProperty(device, NULL, 0, isInput, kAudioDevicePropertyBufferSize, count, &bufsize);
+    } // if
 
     retval = (ALdevice *) calloc(1, sizeof (ALdevice));
     if (retval == NULL)
         return(NULL);
 
-    memcpy(&retval->streamFormat, &streamFormat, sizeof (streamFormat));
-    retval->device = device;
     __alCreateLock(&retval->deviceLock);
 
-	if ((AudioDeviceAddIOProc(device, __alcMixDevice, retval) != kAudioHardwareNoError) ||
-        (AudioDeviceStart(device, __alcMixDevice) != kAudioHardwareNoError))
+    memcpy(&retval->streamFormat, &streamFormat, sizeof (streamFormat));
+    retval->device = device;
+    retval->speakers = streamFormat.mChannelsPerFrame;
+    if (retval->speakers > AL_MAXSPEAKERS)
+        retval->speakers = AL_MAXSPEAKERS;
+
+    // Set up default speaker attributes.
+    __alcSetSpeakerDefaults(retval);
+
+    ioproc = ((isOutput) ? __alcMixDevice : __alcCaptureDevice);
+	if (AudioDeviceAddIOProc(device, ioproc, retval) != kAudioHardwareNoError)
     {
-        
-	    AudioDeviceRemoveIOProc(device, __alcMixDevice);
+        AudioDeviceRemoveIOProc(device, ioproc);
         __alDestroyLock(&retval->deviceLock);
         free(retval);
         return(NULL);
     } // if
 
+    if (isOutput)
+        AudioDeviceStart(device, ioproc);
+
 	return((ALCdevice *) retval);
+} // __alcOpenDeviceInternal
+
+
+#if HAVE_PRAGMA_EXPORT
+#pragma export on
+#endif
+
+ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
+{
+    return(__alcOpenDeviceInternal(deviceName, AL_TRUE, -1));
 } // alcOpenDevice
 
 
 // !!! FIXME: how do you get errors from this? device may not be valid
 // !!! FIXME:   so you can't call alcGetError(), and there's no return value.
-ALCAPI void ALCAPIENTRY alcCloseDevice( ALCdevice *device )
+ALCAPI ALvoid ALCAPIENTRY alcCloseDevice( ALCdevice *device )
 {
     ALdevice *dev = (ALdevice *) device;
+    AudioDeviceIOProc ioproc;
 
     // Contexts associated with this device still exist?
     if (dev->createdContexts[0] != NULL)
         __alcSetError(dev, ALC_INVALID);
     else
     {
-    	AudioDeviceStop(dev->device, __alcMixDevice);
-	    AudioDeviceRemoveIOProc(dev->device, __alcMixDevice);
+        ioproc = ((dev->isInputDevice) ? __alcCaptureDevice : __alcMixDevice);
+    	AudioDeviceStop(dev->device, ioproc);
+	    AudioDeviceRemoveIOProc(dev->device, ioproc);
 
         // !!! FIXME: I assume this means the audio callback not only cannot
         // !!! FIXME:  start a new run, but it will not be running at this point.

@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: PCM data envelope analysis 
- last mod: $Id: envelope.c,v 1.1 2003/10/12 23:51:40 root Exp $
+ last mod: $Id: envelope.c,v 1.2 2004/01/27 18:39:13 icculus Exp $
 
  ********************************************************************/
 
@@ -358,7 +358,7 @@ void _ve_envelope_shift(envelope_lookup *e,long shift){
   int smallsize=e->current/e->searchstep+VE_POST; /* adjust for placing marks
 						     ahead of ve->current */
   int smallshift=shift/e->searchstep;
-  int i;
+  /*int i;*/
 
   memmove(e->mark,e->mark+smallshift,(smallsize-smallshift)*sizeof(*e->mark));
   

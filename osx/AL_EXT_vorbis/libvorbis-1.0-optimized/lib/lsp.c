@@ -11,7 +11,7 @@
  ********************************************************************
 
   function: LSP (also called LSF) conversion routines
-  last mod: $Id: lsp.c,v 1.1 2003/10/12 23:51:40 root Exp $
+  last mod: $Id: lsp.c,v 1.2 2004/01/27 18:39:13 icculus Exp $
 
   The LSP generation code is taken (with minimal modification and a
   few bugfixes) from "On the Computation of the LSP Frequencies" by
@@ -64,8 +64,11 @@ void vorbis_lsp_to_curve(float *curve,int *map,int n,int ln,float *lsp,int m,
 			    float amp,float ampoffset){
   register int i;
   register float wdel=M_PI/ln;
+
+#if !MACOSX
   vorbis_fpu_control fpu;
-  
+#endif
+
   vorbis_fpu_setround(&fpu);
   for(i=0;i<m;i++)lsp[i]=vorbis_coslook(lsp[i]);
 

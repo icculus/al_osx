@@ -13,7 +13,7 @@
  ********************************************************************
 
  function: #ifdef jail to whip a few platforms into the UNIX ideal.
- last mod: $Id: os.h,v 1.1 2003/10/12 23:51:40 root Exp $
+ last mod: $Id: os.h,v 1.2 2004/01/27 18:39:13 icculus Exp $
 
  ********************************************************************/
 
@@ -130,8 +130,8 @@ static __inline void vorbis_fpu_restore(vorbis_fpu_control fpu){
 
 typedef int vorbis_fpu_control;
 
-static int vorbis_ftoi(double f){
-  return (int)(f+.5);
+static inline int vorbis_ftoi(double f){
+  return (int)(f+0.5);
 }
 
 /* We don't have special code for this compiler/arch, so do it the slow way */

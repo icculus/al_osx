@@ -220,16 +220,15 @@ ALAPI ALboolean ALAPIENTRY alIsBuffer(ALuint buffer)
 
 
 // !!! FIXME: Make these resamplers not suck.
+// !!! FIXME:  ... and move them out of alBuffer.c.
 // !!! FIXME:  ... and do altivec versions of them, too.
 
-static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
-                                           ALvoid *_src, ALsizei size,
-                                           ALsizei freq)
+ALboolean __alResampleStereo8(ALvoid *_src, ALsizei _srcsize,
+                              ALvoid *_dst, ALsizei _dstsize)
 {
-    register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    register UInt8 *dst = (UInt8 *) buf->mixData;
-    register UInt8 *max = dst + (buf->allocatedSpace >> 1);
+    register ALfloat ratio = ((ALfloat) _dstsize) / ((ALfloat) _srcsize);
+    register UInt8 *dst = (UInt8 *) _dst;
+    register UInt8 *max = dst + _dstsize;
     register UInt8 *src = (UInt8 *) _src;
     register SInt32 lastSampL = ((SInt32) src[0]) - 128;
     register SInt32 lastSampR = ((SInt32) src[1]) - 128;
@@ -238,10 +237,8 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
 
     // resample to device frequency...
 
-    if (ratio < 1.0f)  // upsampling.
+    if (ratio > 1.0f)  // upsampling.
     {
-        ratio = recip_estimate(ratio);
-
         if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
@@ -283,31 +280,13 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
-            #if 0 // broken
-            register SInt32 linear_counter;
-            register int incr;
-            register int maxincr = (int) ratio;
-            while (dst != max)
-            {
-                sampL = ((SInt32) src[0])-128;
-                sampR = ((SInt32) src[1])-128;
-                src += 2;
-                for (incr = 0; incr < maxincr; incr++, dst += 2)
-                {
-                    linear_counter=(incr+1);
-                    dst[0] = ((linear_counter*sampL + (maxincr-linear_counter)*lastSampL) / maxincr);
-                    dst[1] = ((linear_counter*sampR + (maxincr-linear_counter)*lastSampR) / maxincr);
-                } // for
-                lastSampL = sampL;
-                lastSampR = sampR;
-            } // while
-            #else
+            #if 1
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
             // !!! FIXME: Replace with "run lengths".
-            register int dstsize = buf->allocatedSpace;
+            register int dstsize = _dstsize;
             register int eps = 0;
-            size -= 4;  // fudge factor.
+            _srcsize -= 4;  // fudge factor.
             sampL = (SInt32) src[0];
             sampR = (SInt32) src[1];
             while (dst != max)
@@ -315,7 +294,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
                 dst[0] = sampL;
                 dst[1] = sampR;
                 dst += 2;
-                eps += size;
+                eps += _srcsize;
                 if ((eps << 1) >= dstsize)
                 {
                     src += 2;
@@ -326,66 +305,138 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
                     eps -= dstsize;
                 } // if
             } // while
+            #else
+            // Arbitrary upsampling based on Abrash's interpretation of
+            //  Bresenham's run length sliced line rendering algorithm.
+            // !!! FIXME: Needs better interpolation.
+            register int dstsize = _dstsize;
+            register int wholestep = dstsize / _srcsize;
+            register int adjup = (dstsize % _srcsize);
+            register int adjdown = size << 1;
+            register int errorterm = adjup - adjdown;
+            register int initialsampcount = (wholestep >> 1);
+            register int finalsampcount = initialsampcount;
+            register int runlength;
+            register SInt8 samp8L;
+            register SInt8 samp8R;
+
+            max -= finalsampcount << 1;
+            adjup <<= 1;
+            if (wholestep & 0x01)
+                errorterm += size;
+            else
+            {
+                if (adjup == 0)
+                    initialsampcount--;
+            } // else
+
+            #define DO_RESAMPLING_RUNLENGTH_MACRO_STEREO8(x) \
+                sampL = ( (((SInt32) src[0]) - 128) + lastSampL) >> 1; \
+                sampR = ( (((SInt32) src[1]) - 128) + lastSampR) >> 1; \
+                samp8L = (SInt8) sampL; \
+                samp8R = (SInt8) sampR; \
+                lastSampL = sampL; \
+                lastSampR = sampR; \
+                while (x--) { dst[0] = samp8L; dst[1] = samp8R; dst += 2; } \
+                src += 2;
+
+            DO_RESAMPLING_RUNLENGTH_MACRO_STEREO8(initialsampcount);
+            while (dst != max)
+            {
+                runlength = wholestep;
+                if ((errorterm += adjup) > 0)
+                {
+                    runlength++;
+                    errorterm -= adjdown;
+                } // if
+                DO_RESAMPLING_RUNLENGTH_MACRO_STEREO8(runlength);
+            } // while
+            DO_RESAMPLING_RUNLENGTH_MACRO_STEREO8(finalsampcount);
             #endif
         } // else
     } // if
 
     else  // downsampling
     {
-        #if 0
-        register int maxincr = (((int) ratio) << 1);
-
-        while (dst != max)
-        {
-            sampL = (SInt32) src[0];
-            sampR = (SInt32) src[1];
-            src += 2;
-            dst[0] = ((sampL + lastSampL) >> 1);
-            dst[1] = ((sampR + lastSampR) >> 1);
-            lastSampL = sampL;
-            lastSampR = sampR;
-            dst += 2;
-        } // while
-        #else
+        #if 1
         // Arbitrary downsampling based on Bresenham's line algorithm.
         // !!! FIXME: Needs better interpolation.
-        // !!! FIXME: Replace with "run lengths".
-        register int dstsize = buf->allocatedSpace;
+        register int dstsize = _dstsize;
+        register int srcsize = _srcsize;
         register int eps = 0;
-        size -= 4;  // fudge factor.
+        srcsize -= 4;  // fudge factor.
         lastSampL = sampL = (SInt32) src[0];
         lastSampR = sampR = (SInt32) src[1];
         while (dst != max)
         {
             src += 2;
             eps += dstsize;
-            if ((eps << 1) >= size)
+            if ((eps << 1) >= srcsize)
             {
                 dst[0] = sampL;
                 dst[1] = sampR;
                 dst += 2;
-                sampL = (src[0] + lastSampL) >> 1;
-                sampR = (src[1] + lastSampR) >> 1;
+                sampL = ( (((SInt32) src[0]) - 128) + lastSampL ) >> 1;
+                sampR = ( (((SInt32) src[1]) - 128) + lastSampR ) >> 1;
                 lastSampL = sampL;
                 lastSampR = sampR;
-                eps -= size;
+                eps -= srcsize;
             } // if
+        } // while
+        #else
+        // Arbitrary downsampling based on Abrash's interpretation of
+        //  Bresenham's run length sliced line rendering algorithm.
+        // !!! FIXME: Needs better interpolation.
+        register int dstsize = _dstsize;
+        register int wholestep = _srcsize / dstsize;
+        register int adjup = (_srcsize % dstsize);
+        register int adjdown = dstsize << 1;
+        register int errorterm = adjup - adjdown;
+        register int initialsampcount = (wholestep >> 1);
+
+        adjup <<= 1;
+        if (wholestep & 0x01)
+            errorterm += size;
+        else
+        {
+            if (adjup == 0)
+                initialsampcount--;
+        } // else
+
+        *((SInt16 *) dst) = *((SInt16 *) src);  // copy first two samp points.
+        dst += 2;
+        src += initialsampcount << 1;
+        while (dst != max)
+        {
+            if ((errorterm += adjup) <= 0)
+                src += wholestep;
+            else
+            {
+                src += wholestep + 1;
+                errorterm -= adjdown;
+            } // else
+
+            sampL = ( (((SInt32) src[0]) - 128) + lastSampL ) >> 1;
+            sampR = ( (((SInt32) src[1]) - 128) + lastSampR ) >> 1;
+            dst[0] = (SInt8) sampL;
+            dst[1] = (SInt8) sampR;
+            dst += 2;
+            lastSampL = sampL;
+            lastSampR = sampR;
         } // while
         #endif
     } // else
 
     return(AL_TRUE);
-} // __alBufferDataFromStereo8
+} // __alResampleStereo8
 
 
-static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
-                                            ALvoid *_src, ALsizei size,
-                                            ALsizei freq)
+ALboolean __alResampleStereo16(ALvoid *_src, ALsizei _srcsize,
+                               ALvoid *_dst, ALsizei _dstsize)
 {
-    register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    register SInt16 *dst = (SInt16 *) buf->mixData;
-    register SInt16 *max = dst + (buf->allocatedSpace >> 1);
+    register ALfloat ratio = ((ALfloat) _dstsize) / ((ALfloat) _srcsize);
+    register SInt16 *dst = (SInt16 *) _dst;
+    register SInt16 *max = dst + (_dstsize >> 1);
     register SInt16 *src = (SInt16 *) _src;
     register SInt32 lastSampL = (SInt32) src[0];
     register SInt32 lastSampR = (SInt32) src[1];
@@ -394,10 +445,8 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
 
     // resample to device frequency...
 
-    if (ratio < 1.0f)  // upsampling.
+    if (ratio > 1.0f)  // upsampling.
     {
-        ratio = recip_estimate(ratio);
-
         if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
@@ -438,31 +487,13 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
-            #if 0  // broken
-            register SInt32 linear_counter;
-            register int incr;
-            register int maxincr = (int) ratio;
-            while (dst != max)
-            {
-                sampL = (SInt32) src[0];
-                sampR = (SInt32) src[1];
-                src += 2;
-                for (incr = 0; incr < maxincr; incr++, dst += 2)
-                {
-                    linear_counter=(incr+1);
-                    dst[0] = ((linear_counter*sampL + (maxincr-linear_counter)*lastSampL) / maxincr);
-                    dst[1] = ((linear_counter*sampR + (maxincr-linear_counter)*lastSampR) / maxincr);
-                } // for
-                lastSampL = sampL;
-                lastSampR = sampR;
-            } // while
-            #else
+            #if 1
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
-            // !!! FIXME: Replace with "run lengths".
-            register int dstsize = buf->allocatedSpace;
+            register int dstsize = _dstsize;
+            register int srcsize = _srcsize;
             register int eps = 0;
-            size -= 8;  // fudge factor.
+            srcsize -= 8;  // fudge factor.
             sampL = (SInt32) src[0];
             sampR = (SInt32) src[1];
             while (dst != max)
@@ -470,7 +501,7 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 dst[0] = sampL;
                 dst[1] = sampR;
                 dst += 2;
-                eps += size;
+                eps += srcsize;
                 if ((eps << 1) >= dstsize)
                 {
                     src += 2;
@@ -481,40 +512,74 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                     eps -= dstsize;
                 } // if
             } // while
+            #else
+            // Arbitrary upsampling based on Abrash's interpretation of
+            //  Bresenham's run length sliced line rendering algorithm.
+            // !!! FIXME: Needs better interpolation.
+            register int dstsize = _dstsize;
+            register int wholestep = dstsize / _srcsize;
+            register int adjup = (dstsize % _srcsize);
+            register int adjdown = size << 1;
+            register int errorterm = adjup - adjdown;
+            register int initialsampcount = (wholestep >> 1);
+            register int finalsampcount = initialsampcount;
+            register int runlength;
+            register SInt16 samp16L;
+            register SInt16 samp16R;
+
+            max -= finalsampcount << 1;
+            adjup <<= 1;
+            if (wholestep & 0x01)
+                errorterm += size;
+            else
+            {
+                if (adjup == 0)
+                    initialsampcount--;
+            } // else
+
+            #define DO_RESAMPLING_RUNLENGTH_MACRO_STEREO16(x) \
+                sampL = ( ((SInt32) src[0]) + lastSampL ) >> 1; \
+                sampR = ( ((SInt32) src[1]) + lastSampR ) >> 1; \
+                samp16L = (SInt16) sampL; \
+                samp16R = (SInt16) sampR; \
+                lastSampL = sampL; \
+                lastSampR = sampR; \
+                while (x--) { dst[0] = samp16L; dst[1] = samp16R; dst += 2; } \
+                src += 2;
+
+            DO_RESAMPLING_RUNLENGTH_MACRO_STEREO16(initialsampcount);
+            while (dst != max)
+            {
+                runlength = wholestep;
+                if ((errorterm += adjup) > 0)
+                {
+                    runlength++;
+                    errorterm -= adjdown;
+                } // if
+                DO_RESAMPLING_RUNLENGTH_MACRO_STEREO16(runlength);
+            } // while
+            DO_RESAMPLING_RUNLENGTH_MACRO_STEREO16(finalsampcount);
             #endif
         } // else
     } // if
 
     else  // downsampling
     {
-        #if 0
-        register int maxincr = (((int) ratio) << 1);
-
-        while (dst != max)
-        {
-            sampL = (SInt32) src[0];
-            sampR = (SInt32) src[1];
-            src += 2;
-            dst[0] = ((sampL + lastSampL) >> 1);
-            dst[1] = ((sampR + lastSampR) >> 1);
-            lastSampL = sampL;
-            lastSampR = sampR;
-            dst += 2;
-        } // while
-        #else
+        #if 1
         // Arbitrary downsampling based on Bresenham's line algorithm.
         // !!! FIXME: Needs better interpolation.
         // !!! FIXME: Replace with "run lengths".
-        register int dstsize = buf->allocatedSpace;
+        register int dstsize = _dstsize;
+        register int srcsize = _srcsize;
         register int eps = 0;
-        size -= 8;  // fudge factor.
+        srcsize -= 8;  // fudge factor.
         lastSampL = sampL = (SInt32) src[0];
         lastSampR = sampR = (SInt32) src[1];
         while (dst != max)
         {
             src += 2;
             eps += dstsize;
-            if ((eps << 1) >= size)
+            if ((eps << 1) >= srcsize)
             {
                 dst[0] = sampL;
                 dst[1] = sampR;
@@ -523,35 +588,71 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 sampR = (src[1] + lastSampR) >> 1;
                 lastSampL = sampL;
                 lastSampR = sampR;
-                eps -= size;
+                eps -= srcsize;
             } // if
+        } // while
+        #else
+        // Arbitrary downsampling based on Abrash's interpretation of
+        //  Bresenham's run length sliced line rendering algorithm.
+        // !!! FIXME: Needs better interpolation.
+        register int dstsize = _dstsize;
+        register int wholestep = _srcsize / dstsize;
+        register int adjup = (_srcsize % dstsize);
+        register int adjdown = dstsize << 1;
+        register int errorterm = adjup - adjdown;
+        register int initialsampcount = (wholestep >> 1);
+
+        adjup <<= 1;
+        if (wholestep & 0x01)
+            errorterm += size;
+        else
+        {
+            if (adjup == 0)
+                initialsampcount--;
+        } // else
+
+        *((SInt32 *) dst) = *((SInt32 *) src);  // copy first two samp points.
+        dst += 2;
+        src += initialsampcount << 1;
+        while (dst != max)
+        {
+            if ((errorterm += adjup) <= 0)
+                src += wholestep;
+            else
+            {
+                src += wholestep + 1;
+                errorterm -= adjdown;
+            } // else
+
+            sampL = ( ((SInt32) src[0]) + lastSampL ) >> 1;
+            sampR = ( ((SInt32) src[1]) + lastSampR ) >> 1;
+            dst[0] = (SInt16) sampL;
+            dst[1] = (SInt16) sampR;
+            dst += 2;
+            lastSampL = sampL;
+            lastSampR = sampR;
         } // while
         #endif
     } // else
 
     return(AL_TRUE);
-} // __alBufferDataFromStereo16
+} // __alResampleStereo16
 
 
-
-static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
-                                         ALvoid *_src, ALsizei size,
-                                         ALsizei freq)
+ALboolean __alResampleMono8(ALvoid *_src, ALsizei _srcsize,
+                            ALvoid *_dst, ALsizei _dstsize)
 {
-    register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio = ((ALfloat) freq) / ((ALfloat) devRate);
-    register SInt8 *dst = (SInt8 *) buf->mixData;
-    register SInt8 *max = dst + buf->allocatedSpace;
+    register ALfloat ratio = ((ALfloat) _dstsize) / ((ALfloat) _srcsize);
+    register SInt8 *dst = (SInt8 *) _dst;
+    register SInt8 *max = dst + _dstsize;
     register UInt8 *src = (UInt8 *) _src;
     register SInt32 lastSamp = ((SInt32) *src) - 128; // -128 to convert to signed.
     register SInt32 samp;
 
     // resample to device frequency...
 
-    if (ratio <= 1.0f)  // upsampling.
+    if (ratio > 1.0f)  // upsampling.
     {
-        ratio = recip_estimate(ratio);
-
         if (EPSILON_EQUAL(ratio, 1.0f)) // fast path for signed conversion.
         {
             while (dst != max)
@@ -595,44 +696,20 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
 
         else  // arbitrary upsampling.
         {
-            #if 0  // broken!
-            register SInt32 linear_counter;
-            register int incr;
-            register int maxincr = (int) ratio;
-            while (dst != max)
-            {
-                samp = ((SInt32) *src) - 128;  // -128 to convert to signed.
-                src++;
-                for (incr = 0; incr < maxincr; incr++, dst++){
-                    linear_counter=(incr+1);
-                    *dst = ((linear_counter*samp + (maxincr-linear_counter)*lastSamp) / maxincr);
-                }
-                lastSamp = samp;    
-            } // while
-            #elif 0  // slow!
-            register float fincr = 0.0f;
-            ratio = recip_estimate(ratio);
-            while (dst != max)
-            {
-                samp = src[(int) round(fincr)] - 128;
-                *dst = (lastSamp + samp) >> 1;
-                dst++;
-                fincr += ratio;
-                lastSamp = samp;
-            } // while
-            #else
+            #if 1
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
             // !!! FIXME: Replace with "run lengths".
-            register int dstsize = buf->allocatedSpace;
+            register int dstsize = _dstsize;
+            register int srcsize = _srcsize;
             register int eps = 0;
-            size -= 2;  // fudge factor.
+            srcsize -= 2;  // fudge factor.
             samp = (SInt32) *src;
             while (dst != max)
             {
                 *dst = samp;
                 dst++;
-                eps += size;
+                eps += srcsize;
                 if ((eps << 1) >= dstsize)
                 {
                     src++;
@@ -641,68 +718,136 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
                     eps -= dstsize;
                 } // if
             } // while
+            #else
+            // Arbitrary upsampling based on Abrash's interpretation of
+            //  Bresenham's run length sliced line rendering algorithm.
+            // !!! FIXME: Needs better interpolation.
+            register int dstsize = _dstsize;
+            register int wholestep = dstsize / _srcsize;
+            register int adjup = (dstsize % _srcsize);
+            register int adjdown = size << 1;
+            register int errorterm = adjup - adjdown;
+            register int initialsampcount = (wholestep >> 1);
+            register int finalsampcount = initialsampcount;
+            register int runlength;
+            register SInt8 samp8;
+
+            max -= finalsampcount;
+            adjup <<= 1;
+            if (wholestep & 0x01)
+                errorterm += size;
+            else
+            {
+                if (adjup == 0)
+                    initialsampcount--;
+            } // else
+
+            #define DO_RESAMPLING_RUNLENGTH_MACRO_MONO8(x) \
+                samp = ( (((SInt32) *src) - 128) + lastSamp ) >> 1; \
+                samp8 = (SInt8) samp; \
+                lastSamp = samp; \
+                while (x--) { *dst = samp8; dst++; } \
+                src++;
+
+            DO_RESAMPLING_RUNLENGTH_MACRO_MONO8(initialsampcount);
+            while (dst != max)
+            {
+                runlength = wholestep;
+                if ((errorterm += adjup) > 0)
+                {
+                    runlength++;
+                    errorterm -= adjdown;
+                } // if
+                DO_RESAMPLING_RUNLENGTH_MACRO_MONO8(runlength);
+            } // while
+            DO_RESAMPLING_RUNLENGTH_MACRO_MONO8(finalsampcount);
             #endif
         } // else
     } // if
 
     else  // downsampling
     {
-        #if 0
-        register float pos = 0.0f;  // !!! FIXME: SLOW!
-        while (dst != max)
-        {
-            samp = ((SInt32) src[(size_t) round(pos)]) - 128;  // -128 to convert to signed.
-            pos += ratio;
-            *dst = ((samp + lastSamp) >> 1);
-            lastSamp = samp;
-            dst++;
-        } // while
-        #else
+        #if 1
         // Arbitrary downsampling based on Bresenham's line algorithm.
         // !!! FIXME: Needs better interpolation.
         // !!! FIXME: Replace with "run lengths".
-        register int dstsize = buf->allocatedSpace;
+        register int dstsize = _dstsize;
+        register int srcsize = _srcsize;
         register int eps = 0;
-        size -= 2;  // fudge factor.
+        srcsize -= 2;  // fudge factor.
         lastSamp = samp = (SInt32) *src;
         while (dst != max)
         {
             src++;
             eps += dstsize;
-            if ((eps << 1) >= size)
+            if ((eps << 1) >= srcsize)
             {
                 *dst = samp;
                 dst++;
                 samp = (*src + lastSamp) >> 1;
                 lastSamp = samp;
-                eps -= size;
+                eps -= srcsize;
             } // if
+        } // while
+        #else
+        // Arbitrary downsampling based on Abrash's interpretation of
+        //  Bresenham's run length sliced line rendering algorithm.
+        // !!! FIXME: Needs better interpolation.
+        register int dstsize = _dstsize;
+        register int wholestep = _srcsize / dstsize;
+        register int adjup = (_srcsize % dstsize);
+        register int adjdown = dstsize << 1;
+        register int errorterm = adjup - adjdown;
+        register int initialsampcount = (wholestep >> 1);
+
+        adjup <<= 1;
+        if (wholestep & 0x01)
+            errorterm += size;
+        else
+        {
+            if (adjup == 0)
+                initialsampcount--;
+        } // else
+
+        *dst = *src;
+        dst++;
+        src += initialsampcount;
+        while (dst != max)
+        {
+            if ((errorterm += adjup) <= 0)
+                src += wholestep;
+            else
+            {
+                src += wholestep + 1;
+                errorterm -= adjdown;
+            } // else
+
+            samp = ( (((SInt32) *src) - 128) + lastSamp ) >> 1;
+            *dst = (SInt8) samp;
+            dst++;
+            lastSamp = samp;
         } // while
         #endif
     } // else
 
     return(AL_TRUE);
-} // __alBufferDataFromMono8
+} // __alResampleMono8
 
 
-static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
-                                          ALvoid *_src, ALsizei size,
-                                          ALsizei freq)
+ALboolean __alResampleMono16(ALvoid *_src, ALsizei _srcsize,
+                             ALvoid *_dst, ALsizei _dstsize)
 {
-    register ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
-    register ALfloat ratio = ((ALfloat) freq) / devRate;
-    register SInt16 *dst = (SInt16 *) buf->mixData;
-    register SInt16 *max = dst + (buf->allocatedSpace >> 1);
+    register ALfloat ratio = ((ALfloat) _dstsize) / ((ALfloat) _srcsize);
+    register SInt16 *dst = (SInt16 *) _dst;
+    register SInt16 *max = dst + (_dstsize >> 1);
     register SInt16 *src = (SInt16 *) _src;
     register SInt32 lastSamp = (SInt32) *src;
     register SInt32 samp;
 
     // resample to device frequency...
 
-    if (ratio < 1.0f)  // upsampling.
+    if (ratio > 1.0f)  // upsampling.
     {
-        ratio = recip_estimate(ratio);
-
         if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
         {
             while (dst != max)
@@ -711,7 +856,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
                 src++;
                 dst[0] = ((samp + lastSamp) >> 1);
                 dst[1] = samp;
-                lastSamp = samp;
+                   lastSamp = samp;
                 dst += 2;
             } // while
         } // if
@@ -749,7 +894,6 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             } // while
             #elif 0  // slow!
             register float fincr = 0.0f;
-            ratio = recip_estimate(ratio);
             while (dst != max)
             {
                 samp = src[(int) round(fincr)];
@@ -758,19 +902,19 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
                 fincr += ratio;
                 lastSamp = samp;
             } // while
-            #else
+            #elif 1
             // Arbitrary upsampling based on Bresenham's line algorithm.
             // !!! FIXME: Needs better interpolation.
-            // !!! FIXME: Replace with "run lengths".
-            register int dstsize = buf->allocatedSpace;
+            register int dstsize = _dstsize;
+            register int srcsize = _srcsize;
             register int eps = 0;
-            size -= 4;  // fudge factor.
+            srcsize -= 4;  // fudge factor.
             samp = (SInt32) *src;
             while (dst != max)
             {
                 *dst = samp;
                 dst++;
-                eps += size;
+                eps += srcsize;
                 if ((eps << 1) >= dstsize)
                 {
                     src++;
@@ -779,6 +923,49 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
                     eps -= dstsize;
                 } // if
             } // while
+            #else
+            // Arbitrary upsampling based on Abrash's interpretation of
+            //  Bresenham's run length sliced line rendering algorithm.
+            // !!! FIXME: Needs better interpolation.
+            register int dstsize = _dstsize;
+            register int wholestep = dstsize / _srcsize;
+            register int adjup = (dstsize % _srcsize);
+            register int adjdown = size << 1;
+            register int errorterm = adjup - adjdown;
+            register int initialsampcount = (wholestep >> 1);
+            register int finalsampcount = initialsampcount;
+            register int runlength;
+            register SInt16 samp16;
+
+            max = (src + (_srcsize >> 1)) - finalsampcount;
+            adjup <<= 1;
+            if (wholestep & 0x01)
+                errorterm += _srcsize;
+            else
+            {
+                if (adjup == 0)
+                    initialsampcount--;
+            } // else
+
+            #define DO_RESAMPLING_RUNLENGTH_MACRO_MONO16(x) \
+                samp = ( ((SInt32) *src) + lastSamp ) >> 1; \
+                samp16 = (SInt16) samp; \
+                lastSamp = samp; \
+                while (x--) { *dst = samp16; dst++; } \
+                src++;
+
+            DO_RESAMPLING_RUNLENGTH_MACRO_MONO16(initialsampcount);
+            while (src != max)
+            {
+                runlength = wholestep;
+                if ((errorterm += adjup) > 0)
+                {
+                    runlength++;
+                    errorterm -= adjdown;
+                } // if
+                DO_RESAMPLING_RUNLENGTH_MACRO_MONO16(runlength);
+            } // while
+            DO_RESAMPLING_RUNLENGTH_MACRO_MONO16(finalsampcount);
             #endif
         } // else
     } // if
@@ -795,46 +982,236 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
             lastSamp = samp;
             dst++;
         } // while
-        #else
+        #elif 1
         // Arbitrary downsampling based on Bresenham's line algorithm.
         // !!! FIXME: Needs better interpolation.
-        // !!! FIXME: Replace with "run lengths".
-        register int dstsize = buf->allocatedSpace;
+        register int dstsize = _dstsize;
+        register int srcsize = _srcsize;
         register int eps = 0;
-        size -= 4;  // fudge factor.
+        srcsize -= 4;  // fudge factor.
         lastSamp = samp = (SInt32) *src;
         while (dst != max)
         {
             src++;
             eps += dstsize;
-            if ((eps << 1) >= size)
+            if ((eps << 1) >= srcsize)
             {
                 *dst = samp;
                 dst++;
                 samp = (*src + lastSamp) >> 1;
                 lastSamp = samp;
-                eps -= size;
+                eps -= srcsize;
             } // if
+        } // while
+        #else
+        // Arbitrary downsampling based on Abrash's interpretation of
+        //  Bresenham's run length sliced line rendering algorithm.
+        // !!! FIXME: Needs better interpolation.
+        register int dstsize = _dstsize;
+        register int wholestep = _srcsize / dstsize;
+        register int adjup = (_srcsize % dstsize);
+        register int adjdown = dstsize << 1;
+        register int errorterm = adjup - adjdown;
+        register int initialsampcount = (wholestep >> 1);
+
+        adjup <<= 1;
+        if (wholestep & 0x01)
+            errorterm += _srcsize;
+        else
+        {
+            if (adjup == 0)
+                initialsampcount--;
+        } // else
+
+        *dst = *src;
+        dst++;
+        src += initialsampcount;
+        while (dst != max)
+        {
+            if ((errorterm += adjup) <= 0)
+                src += wholestep;
+            else
+            {
+                src += wholestep + 1;
+                errorterm -= adjdown;
+            } // else
+
+            samp = ( ((SInt32) *src) + lastSamp ) >> 1;
+            *dst = (SInt16) samp;
+            dst++;
+            lastSamp = samp;
         } // while
         #endif
     } // else
 
     return(AL_TRUE);
-} // __alBufferDataFromMono16
+} // __alResampleMono16
+
+
+ALboolean __alResampleMonoFloat32(ALvoid *_src, ALsizei _srcsize,
+                                  ALvoid *_dst, ALsizei _dstsize)
+{
+    register ALfloat ratio = ((ALfloat) _dstsize) / ((ALfloat) _srcsize);
+    register Float32 *dst = (Float32 *) _dst;
+    register Float32 *max = dst + (_dstsize >> 2);
+    register Float32 *src = (Float32 *) _src;
+    register Float32 lastSamp = *src;
+    register Float32 samp;
+
+    // resample to device frequency...
+
+    if (ratio > 1.0f)  // upsampling.
+    {
+        if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
+        {
+            while (dst != max)
+            {
+                samp = *src;
+                src++;
+                dst[0] = ((samp + lastSamp) * 0.5f);
+                dst[1] = samp;
+                lastSamp = samp;
+                dst += 2;
+            } // while
+        } // if
+
+        else if (EPSILON_EQUAL(ratio, 4.0f)) // fast path for quadrupling rate.
+        {
+            while (dst != max)
+            {
+                samp = *src;
+                src++;
+                dst[0] = ((samp + 3.0f * lastSamp) * 0.5f);
+                dst[1] = ((samp + lastSamp) * 0.5f);
+                dst[2] = ((3.0f * samp + lastSamp) * 0.25f);
+                dst[3] = samp;
+                dst += 4;
+                lastSamp = samp;
+            } // while
+        } // if
+
+        else  // arbitrary upsampling.
+        {
+            assert(0);  // !!! FIXME: Fill this in when you finish debugging the integer version.
+        } // else
+    } // if
+
+    else  // downsampling
+    {
+        assert(0);  // !!! FIXME: Fill this in when you finish debugging the integer version.
+    } // else
+
+    return(AL_TRUE);
+} // __alResampleMonoFloat32
+
+
+ALboolean __alResampleStereoFloat32(ALvoid *_src, ALsizei _srcsize,
+                                    ALvoid *_dst, ALsizei _dstsize)
+{
+    register ALfloat ratio = ((ALfloat) _dstsize) / ((ALfloat) _srcsize);
+    register Float32 *dst = (Float32 *) _dst;
+    register Float32 *max = dst + (_dstsize >> 2);
+    register Float32 *src = (Float32 *) _src;
+    register Float32 lastSampL = src[0];
+    register Float32 lastSampR = src[1];
+    register Float32 sampL;
+    register Float32 sampR;
+
+    // resample to device frequency...
+
+    if (ratio > 1.0f)  // upsampling.
+    {
+        if (EPSILON_EQUAL(ratio, 2.0f)) // fast path for doubling rate.
+        {
+            while (dst != max)
+            {
+                sampL = src[0];
+                sampR = src[1];
+                src += 2;
+                dst[0] = ((sampL + lastSampL) * 0.5f);
+                dst[1] = ((sampR + lastSampR) * 0.5f);
+                dst[2] = sampL;
+                dst[3] = sampR;
+                lastSampL = sampL;
+                lastSampR = sampR;
+                dst += 4;
+            } // while
+        } // if
+
+        else if (EPSILON_EQUAL(ratio, 4.0f)) // fast path for quadrupling rate.
+        {
+            while (dst != max)   // !!! FIXME: Altivec!
+            {
+                sampL = (SInt32) src[0];
+                sampR = (SInt32) src[1];
+                src += 2;
+                dst[0] = ((sampL + 3*lastSampL) * 0.25f);
+                dst[1] = ((sampR + 3*lastSampR) * 0.25f);
+                dst[2] = ((sampL + lastSampL) * 0.5f);
+                dst[3] = ((sampR + lastSampR) * 0.5f);
+                dst[4] = ((3*sampL + lastSampL) * 0.25f);
+                dst[5] = ((3*sampR + lastSampR) * 0.25f);
+                dst[6] = sampL;
+                dst[7] = sampR;
+                lastSampL = sampL;
+                lastSampR = sampR;
+                dst += 8;
+            } // while
+        } // if
+
+        else  // arbitrary upsampling.
+        {
+            assert(0);  // !!! FIXME: Fill this in when you finish debugging the integer version.
+        } // else
+    } // if
+
+    else  // downsampling
+    {
+        #if 1
+        // Arbitrary downsampling based on Bresenham's line algorithm.
+        // !!! FIXME: Needs better interpolation.
+        // !!! FIXME: Replace with "run lengths".
+        register int dstsize = _dstsize;
+        register int srcsize = _srcsize;
+        register int eps = 0;
+        srcsize -= 16;  // fudge factor.
+        lastSampL = sampL = src[0];
+        lastSampR = sampR = src[1];
+        while (dst != max)
+        {
+            src += 2;
+            eps += dstsize;
+            if ((eps << 1) >= srcsize)
+            {
+                dst[0] = sampL;
+                dst[1] = sampR;
+                dst += 2;
+                sampL = (src[0] + lastSampL) * 0.5f;
+                sampR = (src[1] + lastSampR) * 0.5f;
+                lastSampL = sampL;
+                lastSampR = sampR;
+                eps -= srcsize;
+            } // if
+        } // while
+        #else
+        assert(0);  // !!! FIXME: Fill this in when you finish debugging the integer version.
+        #endif
+    } // else
+
+    return(AL_TRUE);
+} // __alResampleStereoFloat32
 
 
 // Use this when no conversion is needed.
-static ALboolean __alBufferDataSimpleMemcpy(ALcontext *ctx, ALbuffer *buf,
-                                            ALvoid *_src, ALsizei size,
-                                            ALsizei freq)
+ALboolean __alResampleSimpleMemcpy(ALvoid *_src, ALsizei _srcsize,
+                                   ALvoid *_dst, ALsizei _dstsize)
 {
     // !!! FIXME: Use vm_copy?
-    memcpy(buf->mixData, _src, buf->allocatedSpace);
+    assert(_srcsize == _dstsize);
+    memcpy(_dst, _src, _dstsize);
     return(AL_TRUE);
-} // __alBufferDataSimpleMemcpy
+} // __alResampleSimpleMemcpy
 
-
-typedef ALboolean (*bufcvt_t)(ALcontext*,ALbuffer*,ALvoid*,ALsizei,ALsizei);
 
 static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
                                      ALenum format, ALvoid *data,
@@ -843,7 +1220,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
     ALfloat devRate = (ALfloat) (ctx->device->streamFormat.mSampleRate);
     ALint channels = (ALint) (ctx->device->streamFormat.mChannelsPerFrame);
 	ALfloat ratio = devRate / ((ALfloat) freq);
-    bufcvt_t fn = NULL;
+    __alResampleFunc_t resample = NULL;
     ALsizei newAlloc = 0;
     ALboolean alwaysDoConvert = AL_FALSE;
 
@@ -856,7 +1233,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 	{
         case AL_FORMAT_STEREO8:
             //printf("buffering stereo8 data...\n");
-            fn = __alBufferDataFromStereo8;
+            resample = __alResampleStereo8;
             alwaysDoConvert = AL_TRUE;  // must convert to signed.
             newAlloc = ((ALsizei) ((size >> 1) * ratio)) << 1;
             buffer->bits = 8;
@@ -867,7 +1244,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 
 		case AL_FORMAT_MONO8 :
             //printf("buffering mono8 data...\n");
-            fn = __alBufferDataFromMono8;
+            resample = __alResampleMono8;
             alwaysDoConvert = AL_TRUE;  // must convert to signed.
             newAlloc = (ALsizei) (size * ratio);
             buffer->bits = 8;
@@ -881,7 +1258,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 
 		case AL_FORMAT_STEREO16:
             //printf("buffering stereo16 data...\n");
-            fn = __alBufferDataFromStereo16;
+            resample = __alResampleStereo16;
             newAlloc = ((ALsizei) ((size >> 2) * ratio)) << 2;
             buffer->bits = 16;
             buffer->channels = 2;
@@ -894,7 +1271,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 
 		case AL_FORMAT_MONO16:
             //printf("buffering mono16 data...\n");
-            fn = __alBufferDataFromMono16;
+            resample = __alResampleMono16;
             newAlloc = ((ALsizei) ((size >> 1) * ratio)) << 1;
             buffer->bits = 16;
             buffer->channels = 1;
@@ -908,13 +1285,42 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
         #if SUPPORTS_AL_EXT_VORBIS
         case AL_FORMAT_VORBIS_EXT:
             //printf("buffering vorbis data...\n");
-            fn = __alBufferDataFromVorbis;
+            resample = __alResampleSimpleMemcpy;
             alwaysDoConvert = AL_TRUE;  // obviously, this is specialized.
             newAlloc = size;
             buffer->bits = 32;
             buffer->channels = 2;
             buffer->compressed = AL_TRUE;
+            __alBufferDataFromVorbis(buffer);
             break;
+        #endif
+
+        #if SUPPORTS_AL_EXT_FLOAT32
+        case AL_FORMAT_MONO_FLOAT32:
+            //printf("buffering mono-float32 data...\n");
+            resample = __alResampleMonoFloat32;
+            newAlloc = ((ALsizei) ((size >> 2) * ratio)) << 2;
+            buffer->bits = 32;
+            buffer->channels = 1;
+            buffer->compressed = AL_FALSE;
+            if ((__alHasEnabledVectorUnit) && (channels == 2))
+                buffer->mixFunc = __alMixMonoFloat32_altivec;
+            else
+                buffer->mixFunc = __alMixMonoFloat32;
+		    break;
+
+        case AL_FORMAT_STEREO_FLOAT32:
+            //printf("buffering stereo-float32 data...\n");
+            resample = __alResampleStereoFloat32;
+            newAlloc = ((ALsizei) ((size >> 3) * ratio)) << 3;
+            buffer->bits = 32;
+            buffer->channels = 2;
+            buffer->compressed = AL_FALSE;
+            if ((__alHasEnabledVectorUnit) && (channels == 2))
+                buffer->mixFunc = __alMixStereoFloat32_altivec;
+            else
+                buffer->mixFunc = __alMixStereoFloat32;
+		    break;
         #endif
 
 		default:
@@ -927,7 +1333,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
     {
         //printf("  ...Buffering with simple memcpy...\n");
         newAlloc = size;
-        fn = __alBufferDataSimpleMemcpy;
+        resample = __alResampleSimpleMemcpy;
     } // if
 
     if (newAlloc != buffer->allocatedSpace)
@@ -944,7 +1350,10 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
         buffer->mixData = ptr + (16 - (((size_t) ptr) % 16));
     } // if
 
-    return(fn(ctx, buffer, data, size, freq));
+    if (size == 0)
+        return(AL_TRUE);  // !!! FIXME: legal no-op?
+
+    return(resample(data, size, buffer->mixData, newAlloc));
 } // __alDoBufferConvert
 
 
