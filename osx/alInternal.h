@@ -66,7 +66,7 @@ struct ALsource_struct;
 typedef pthread_mutex_t ALlock;
 
 // These numbers might need adjustment up or down.
-#define AL_MAXBUFFERS      1024
+#define AL_MAXBUFFERS      1024 * 2
 #define AL_MAXBUFFERQUEUE  32
 #define AL_MAXSOURCES      128
 #define AL_MAXCONTEXTS     4
