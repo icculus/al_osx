@@ -647,8 +647,10 @@ static ALvoid __alcSetSpeakerDefaults(ALdevice *dev)
     UInt32 i;
 
     dev->speakerConfig = SPKCFG_STDSTEREO;
-    if (dev->speakers > 2)
-        dev->speakerConfig = SPKCFG_POSATTENUATION;
+
+// !!! FIXME: Non-stereo codepaths are broken right now.
+//    if (dev->speakers > 2)
+//        dev->speakerConfig = SPKCFG_POSATTENUATION;
 
     if (dev->speakers == 0)  // may be capture device, etc...
         return;
@@ -686,7 +688,7 @@ static ALvoid __alcSetSpeakerDefaults(ALdevice *dev)
         case 5:  // 4.1 setup.   !!! FIXME
         case 6:  // 5.1 setup.   !!! FIXME
         default:
-            assert(0);
+            //assert(0);
             break;
     } // switch
 
