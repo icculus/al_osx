@@ -302,7 +302,7 @@ static ALboolean __alBufferDataFromStereo8(ALcontext *ctx, ALbuffer *buf,
                 avgR = ((sampR + lastSampR) >> 1);
                 lastSampL = sampL;
                 lastSampR = sampR;
-                for (incr = 0; incr < maxincr; incr++, dst += 2)
+                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst+=2)
                 {
                     dst[0] = avgL;
                     dst[1] = avgR;
@@ -412,7 +412,7 @@ static ALboolean __alBufferDataFromStereo16(ALcontext *ctx, ALbuffer *buf,
                 avgR = ((sampR + lastSampR) >> 1);
                 lastSampL = sampL;
                 lastSampR = sampR;
-                for (incr = 0; incr < maxincr; incr++, dst += 2)
+                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst+=2)
                 {
                     dst[0] = avgL;
                     dst[1] = avgR;
@@ -517,7 +517,7 @@ static ALboolean __alBufferDataFromMono8(ALcontext *ctx, ALbuffer *buf,
                 src++;
                 avg = ((samp + lastSamp) >> 1);
                 lastSamp = samp;
-                for (incr = 0; incr < maxincr; incr++, dst++)
+                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst++)
                     *dst = avg;
             } // while
         } // else
@@ -602,7 +602,7 @@ static ALboolean __alBufferDataFromMono16(ALcontext *ctx, ALbuffer *buf,
                 src++;
                 avg = ((samp + lastSamp) >> 1);
                 lastSamp = samp;
-                for (incr = 0; incr < maxincr; incr++, dst++)
+                for (incr = 0; (incr < maxincr) && (dst < max); incr++, dst++)
                     *dst = avg;
             } // while
         } // else
