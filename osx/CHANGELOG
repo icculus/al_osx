@@ -3,6 +3,11 @@
  * CHANGELOG.
  */
 
+10152003 - Hack in arbitrary upsamplers to fix buffer overflow. I'm still
+           displeased with the resampling code. I want it to sound better
+           without sacrificing too much speed. Panning code was backwards
+           (whoops), so audio should play left-to-right correctly now.
+10142003 - Removed a FIXME comment.
 10132003 - Makefile should now favor internal Ogg Vorbis headers over those
            installed system-wide.
 10122003 - Initial posting on icculus.org.
