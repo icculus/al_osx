@@ -476,6 +476,207 @@ UInt32 __alMixStereo16(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_d
 } // __alMixStereo16
 
 
+UInt32 __alMixMono8_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
+{
+    register UInt32 buflen = buf->allocatedSpace - src->bufferReadIndex;
+    register ALsizei overflow = 0;
+    register SInt8 *in = ((SInt8 *) buf->mixData) + src->bufferReadIndex;
+    register Float32 *dst = _dst;
+    register Float32 *max;
+    register Float32 gainLeft;
+    register Float32 gainRight;
+    register Float32 sample;
+    register size_t dsti = ((size_t) dst) & 0x0000000F;
+
+    assert(ctx->device->streamFormat.mChannelsPerFrame == 2);
+
+    __alRecalcMonoSource(ctx, src);
+    gainLeft = src->CalcGainLeft;
+    gainRight = src->CalcGainRight;
+
+    if (dsti)  // Destination isn't 16-byte aligned?
+    {
+        if ((dsti % 2) && (frames > dsti))  // bump dst to 16-byte alignment.
+        {
+            register Float32 convGainLeft = gainLeft * DIVBY127;
+            register Float32 convGainRight = gainRight * DIVBY127;
+            while (UNALIGNED_PTR(dst))
+            {
+                sample = ((Float32) *in);
+                in++;
+                dst[0] += sample * convGainLeft;
+                dst[1] += sample * convGainRight;
+                dst += 2;
+                frames--;
+            } // while
+        } // if
+
+        else  // dst will never align in this run; use scalar version.  :(
+        {
+            return(__alMixMono8(ctx, buf, src, dst, frames));
+        } // else
+    } // if
+
+    overflow = frames - buflen;
+    if (overflow < 0)
+        overflow = 0;
+    else
+        frames = buflen;
+
+    // Too quiet to be worth playing? Just skip ahead in the buffer appropriately.
+    if ((gainLeft > MINVOL) || (gainRight > MINVOL))
+    {
+        // Permute vectors to convert mono channel to stereo.
+        register vector unsigned char permute1 = (vector unsigned char)
+                                                    ( 0x00, 0x00, 0x01, 0x01,
+                                                      0x02, 0x02, 0x03, 0x03,
+                                                      0x04, 0x04, 0x05, 0x05,
+                                                      0x06, 0x06, 0x07, 0x07 );
+        register vector unsigned char permute2;
+        register vector unsigned char aligner = vec_lvsl(0, in);
+
+        register vector float gainvec = (vector float) ( DIVBY127, DIVBY127,
+                                                         DIVBY127, DIVBY127 );
+        register vector float zero = (vector float) vec_splat_u32(0);
+        register vector float mixvec1;
+        register vector float mixvec2;
+        register vector float mixvec3;
+        register vector float mixvec4;
+        register vector float mixvec5;
+        register vector float mixvec6;
+        register vector float mixvec7;
+        register vector float mixvec8;
+        register vector float v1;
+        register vector float v2;
+        register vector float v3;
+        register vector float v4;
+        register vector float v5;
+        register vector float v6;
+        register vector float v7;
+        register vector float v8;
+        register vector signed short conv_short;
+        register vector signed int conv_int;
+        register vector signed char ld;
+        register vector signed char ld2;
+        register vector signed char ld_overflow;
+        register int extra = (frames % 32);
+
+        union
+        {
+            vector float v;
+            float f[4];
+        } gaincvt;
+
+        permute2 = vec_add(permute1, vec_splat_u8(8));
+
+        if (gainLeft > 1.0f)
+            gainLeft = 1.0f;
+
+        if (gainRight > 1.0f)
+            gainRight = 1.0f;
+
+        gaincvt.f[0] = gaincvt.f[2] = gainLeft;
+        gaincvt.f[1] = gaincvt.f[3] = gainRight;
+        gainvec = vec_madd(gainvec, gaincvt.v, zero);
+
+        // Mix to the output buffer...
+        frames -= extra;
+        max = dst + (frames << 1);
+
+        ld = vec_ld(0, in);
+        while (dst < max)
+        {
+            // Get the sample points into a vector register...
+            ld_overflow = vec_ld(16, in);  // read 16 8-bit samples.
+
+            in += 16;
+
+            mixvec1 = vec_ld(0x00, dst);
+            mixvec2 = vec_ld(0x10, dst);
+            mixvec3 = vec_ld(0x20, dst);
+            mixvec4 = vec_ld(0x30, dst);
+            mixvec5 = vec_ld(0x40, dst);
+            mixvec6 = vec_ld(0x50, dst);
+            mixvec7 = vec_ld(0x60, dst);
+            mixvec8 = vec_ld(0x70, dst);
+
+            ld = vec_perm(ld, ld_overflow, aligner);
+
+            // convert to stereo, so there's 8 stereo samples per vector.
+            // ld  == 0l 0r 1l 1r 2l 2r 3l 3r 4l 4r 5l 5r 6l 6r 7l 7r
+            // ld2 == 8l 8r 9l 9r Al Ar Bl Br Cl Cr Dl Dr El Er Fl Fr
+            ld2 = vec_perm(ld, ld, permute2);
+            ld = vec_perm(ld, ld, permute1);
+
+            // convert to 16-bit ints, then 32-bit ints, then floats...
+            conv_short = vec_unpackh(ld);
+            conv_int = vec_unpackh(conv_short);
+            v1 = vec_ctf(conv_int, 0);
+            conv_int = vec_unpackl(conv_short);
+            v2 = vec_ctf(conv_int, 0);
+            conv_short = vec_unpackl(ld);
+            conv_int = vec_unpackh(conv_short);
+            v3 = vec_ctf(conv_int, 0);
+            conv_int = vec_unpackl(conv_short);
+            v4 = vec_ctf(conv_int, 0);
+            conv_short = vec_unpackh(ld2);
+            conv_int = vec_unpackh(conv_short);
+            v5 = vec_ctf(conv_int, 0);
+            conv_int = vec_unpackl(conv_short);
+            v6 = vec_ctf(conv_int, 0);
+            conv_short = vec_unpackl(ld2);
+            conv_int = vec_unpackh(conv_short);
+            v7 = vec_ctf(conv_int, 0);
+            conv_int = vec_unpackl(conv_short);
+            v8 = vec_ctf(conv_int, 0);
+
+            // change to float scale, apply gain, and mix with dst...
+            v1 = vec_madd(v1, gainvec, mixvec1);
+            v2 = vec_madd(v2, gainvec, mixvec2);
+            v3 = vec_madd(v3, gainvec, mixvec3);
+            v4 = vec_madd(v4, gainvec, mixvec4);
+            v5 = vec_madd(v5, gainvec, mixvec5);
+            v6 = vec_madd(v6, gainvec, mixvec6);
+            v7 = vec_madd(v7, gainvec, mixvec7);
+            v8 = vec_madd(v8, gainvec, mixvec8);
+
+            // store converted version back to RAM...
+            vec_st(v1, 0x00, dst);
+            vec_st(v2, 0x10, dst);
+            vec_st(v3, 0x20, dst);
+            vec_st(v4, 0x30, dst);
+            vec_st(v5, 0x40, dst);
+            vec_st(v6, 0x50, dst);
+            vec_st(v7, 0x60, dst);
+            vec_st(v8, 0x70, dst);
+
+            dst += 32;
+            ld = ld_overflow;
+        } // while
+
+        // Handle overflow as scalar data.
+        if (extra)
+        {
+            gainLeft *= DIVBY127;
+            gainRight *= DIVBY127;
+            max += extra;
+            frames += extra;
+            while (dst < max)
+            {
+                sample = ((Float32) *in);
+                in++;
+                dst[0] += sample * gainLeft;
+                dst[1] += sample * gainRight;
+                dst += 2;
+            } // while
+        } // if
+    } // if
+
+    src->bufferReadIndex += frames;
+    return(overflow);
+} // __alMixMono8_altivec
+
+
 UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
     register UInt32 buflen = (buf->allocatedSpace >> 1) - src->bufferReadIndex;
@@ -486,15 +687,37 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
     register Float32 gainLeft;
     register Float32 gainRight;
     register Float32 sample;
+    register size_t dsti = ((size_t) dst) & 0x0000000F;
 
     assert(ctx->device->streamFormat.mChannelsPerFrame == 2);
-
-    if ( (UNALIGNED_PTR(dst)) || (UNALIGNED_PTR(in)) )
-        return(__alMixMono16(ctx, buf, src, dst, frames));
 
     __alRecalcMonoSource(ctx, src);
     gainLeft = src->CalcGainLeft;
     gainRight = src->CalcGainRight;
+
+    if (dsti)  // Destination isn't 16-byte aligned?
+    {
+        if ((dsti % 2) && (frames > dsti))  // bump dst to 16-byte alignment.
+        {
+            register Float32 convGainLeft = gainLeft * DIVBY32767;
+            register Float32 convGainRight = gainRight * DIVBY32767;
+            while (UNALIGNED_PTR(dst))
+            {
+                sample = ((Float32) *in);
+                in++;
+                dst[0] += sample * convGainLeft;
+                dst[1] += sample * convGainRight;
+                dst += 2;
+                frames--;
+            } // while
+        } // if
+
+        else  // dst will never align in this run; use scalar version.  :(
+        {
+            return(__alMixMono16(ctx, buf, src, dst, frames));
+        } // else
+    } // if
+
 
     overflow = frames - buflen;
     if (overflow < 0)
@@ -511,11 +734,9 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
                                                       0x02, 0x03, 0x02, 0x03,
                                                       0x04, 0x05, 0x04, 0x05,
                                                       0x06, 0x07, 0x06, 0x07 );
-        register vector unsigned char permute2 = (vector unsigned char)
-                                                    ( 0x08, 0x09, 0x08, 0x09,
-                                                      0x0A, 0x0B, 0x0A, 0x0B,
-                                                      0x0C, 0x0D, 0x0C, 0x0D,
-                                                      0x0E, 0x0F, 0x0E, 0x0F );
+        register vector unsigned char permute2;
+        register vector unsigned char aligner = vec_lvsl(0, in);
+
         register vector float divby = (vector float) ( DIVBY32767, DIVBY32767,
                                                        DIVBY32767, DIVBY32767 );
         register vector float zero = (vector float) vec_splat_u32(0);
@@ -534,6 +755,7 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
         register vector float v4;
         register vector signed short ld;
         register vector signed short ld2;
+        register vector signed short ld_overflow;
         register int extra = (frames % 16);
 
         union
@@ -541,6 +763,8 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
             vector float v;
             float f[4];
         } gaincvt;
+
+        permute2 = vec_add(permute1, vec_splat_u8(8));
 
         if (gainLeft > 1.0f)
             gainLeft = 1.0f;
@@ -556,22 +780,25 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
         frames -= extra;
         max = dst + (frames << 1);
 
+        ld = vec_ld(0, in);  // read eight 16-bit samples.
         while (dst < max)
         {
             // Get the sample points into a vector register...
-            ld = vec_ld(0, in);  // read eight 16-bit samples.
+            ld_overflow = vec_ld(16, in);  // read eight 16-bit samples.
+
+            mixvec1 = vec_ld(0x00, dst);
+            mixvec2 = vec_ld(0x10, dst);
+            mixvec3 = vec_ld(0x20, dst);
+            mixvec4 = vec_ld(0x30, dst);
+
             in += 8;
+            ld = vec_perm(ld, ld_overflow, aligner);
 
             // convert to stereo, so there's 4 stereo samples per vector.
             // ld  == 0l 0r 1l 1r 2l 2r 3l 3r
             // ld2 == 4l 4r 5l 5r 6l 6r 7l 6r
             ld2 = vec_perm(ld, ld, permute2);
             ld = vec_perm(ld, ld, permute1);
-
-            mixvec1 = vec_ld(0, dst);
-            mixvec2 = vec_ld(16, dst);
-            mixvec3 = vec_ld(32, dst);
-            mixvec4 = vec_ld(48, dst);
 
             // convert to 32-bit integers for vec_ctf...
             conv1 = vec_unpackh(ld);
@@ -597,6 +824,7 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
             vec_st(v3, 32, dst);
             vec_st(v4, 48, dst);
             dst += 16;
+            ld = ld_overflow;
         } // while
 
         // Handle overflow as scalar data.
@@ -605,6 +833,7 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
             gainLeft *= DIVBY32767;
             gainRight *= DIVBY32767;
             max += extra;
+            frames += extra;
             while (dst < max)
             {
                 sample = ((Float32) *in);
@@ -632,6 +861,7 @@ UInt32 __alMixStereo16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Flo
 
     assert(ctx->device->streamFormat.mChannelsPerFrame == 2);
 
+    // !!! FIXME: Align dst, use vec_lvsl on in.
     if ( (UNALIGNED_PTR(dst)) || (UNALIGNED_PTR(in)) )
         return(__alMixStereo16(ctx, buf, src, dst, frames));
 
