@@ -66,9 +66,13 @@ ifeq ($(strip $(SUPPORT_AL_EXT_BUFFER_OFFSET)),true)
 endif
 
 ifeq ($(strip $(SUPPORT_AL_EXT_VORBIS)),true)
-	OGG_SRC := AL_EXT_vorbis/libogg-1.0-optimized/src
-	VORBIS_SRC := AL_EXT_vorbis/libvorbis-1.0-optimized/lib
-    CFLAGS += -DSUPPORTS_AL_EXT_VORBIS=1
+    OGG_DIR := AL_EXT_vorbis/libogg-1.0-optimized
+	OGG_SRC := $(OGG_DIR)/src
+	OGG_INC := $(OGG_DIR)/include
+    VORBIS_DIR := AL_EXT_vorbis/libvorbis-1.0-optimized
+	VORBIS_SRC := $(VORBIS_DIR)/lib
+	VORBIS_INC := $(VORBIS_DIR)/include
+    CFLAGS += -I$(OGG_INC) -I$(VORBIS_INC) -DSUPPORTS_AL_EXT_VORBIS=1
     SRCS += $(OGG_SRC)/bitwise.c \
 			$(OGG_SRC)/framing.c \
             $(VORBIS_SRC)/analysis.c \
