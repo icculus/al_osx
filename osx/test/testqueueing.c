@@ -52,7 +52,7 @@ int main(int argc, char **argv)
 
         alGetSourcei(sid, AL_SOURCE_STATE, &state);
         alGetSourcei(sid, AL_BUFFERS_QUEUED, &queued);
-        if (queued < MAX_QUEUE_BUFFERS)
+        while (queued < MAX_QUEUE_BUFFERS)
         {
             //printf("only %d of %d buffers queued.\n", (int) queued, MAX_QUEUE_BUFFERS);
             rc = fread(data, 1, sizeof (data), io);
@@ -63,13 +63,16 @@ int main(int argc, char **argv)
                 alSourceQueueBuffers(sid, 1, &bid[buf_ptr]);
                 buf_ptr++;
                 buf_ptr %= MAX_QUEUE_BUFFERS;
+		queued++;
             }
-	    }
+	}
 
 	    if(state != AL_PLAYING) {
                 printf("calling alSourcePlay...\n");
 			    alSourcePlay(sid);
 	    }
+	sleep(1);
+
     } // while
 
     printf("eof.\n");
