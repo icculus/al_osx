@@ -1015,7 +1015,9 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
 
         playCount++;
         src = *srcs;
-        assert(src->inUse);
+
+        if (!src->inUse)  // someone deleted a playing source!
+            src->state = AL_STOPPED;
 
         if (src->state == AL_PLAYING)
         {

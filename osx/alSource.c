@@ -54,7 +54,12 @@ ALvoid __alSourcesInit(ALsource *srcs, ALsizei count)
 
 ALvoid __alSourcesShutdown(ALsource *srcs, ALsizei count)
 {
-    // no-op, currently.
+    register ALsizei i;
+    register ALsizei max = count;
+    register ALsource *src = srcs;
+
+    for (i = 0; i < max; i++, src++)
+        src->inUse = AL_FALSE;
 } // __alSourcesShutdown
 
 
@@ -211,8 +216,7 @@ ALAPI ALvoid ALAPIENTRY alDeleteSources(ALsizei _n, ALuint *sources)
     } // if
     else
     {
-        // !!! FIXME: Legal to delete a playing source? If so, we need to
-        // !!! FIXME:  update ctx->playingSources...
+        // !!! FIXME: Is it legal to delete a playing source?
         for (i = 0; i < n; i++)
         {
             if ((sources[i] >= AL_MAXSOURCES) || (!ctx->sources[sources[i]].inUse))
