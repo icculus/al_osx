@@ -3,7 +3,8 @@
  * CHANGELOG.
  */
 
-10182003 - Fixed testqueueing.c to not eat whole CPU.
+10182003 - Fixed testqueueing.c to not eat whole CPU. alBufferData() now uses
+           linear resampling when converting to device format (thanks, Joe!).
 10162003 - Moved some stuff around in alExtension.c in hopes of clearing out
            the gcc 3.1 optimization bug.
 10152003 - Hack in arbitrary upsamplers to fix buffer overflow. I'm still
