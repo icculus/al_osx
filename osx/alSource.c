@@ -288,6 +288,7 @@ ALAPI ALvoid ALAPIENTRY alSourcef (ALuint source, ALenum pname, ALfloat value)
                     needsRecalc = (src->maxDistance != value);
                     src->maxDistance = value;
                 } // else
+                break;
 
             case AL_MIN_GAIN:
                 if ((value < 0.0f) || (value > 1.0f))
