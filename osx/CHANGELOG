@@ -3,6 +3,18 @@
  * CHANGELOG.
  */
 
+11242003 - Made some optimizations in alSoftware.c: always use recip sqrt
+           with newton-raphson, and inline it...this is a good speed win.
+           G5 users can build with USE_G5_SQRT for a little more speed, but
+           the binary will crash on a G4. Cleaned up some code that doesn't
+           optimize well and inlined the hell out of some stuff. Hopefully
+           nothing's broken. There's some new Altivec code in there, but I
+           have it commented out currently, since there is less of a win
+           if we can't inline it...if I rewrite the code to have a pure
+           Altivec version, that'll be useful, though. __alRecalcMonoSource()
+           has been merged with __alCalcSourceAttributes(), to reduce
+           function call overhead. Replaced calculated channel gains with
+           an array of gains, in case we ever get past stereo panning.
 11162003 - Replaced all the downsamplers with Bresenham thingey, but who am I
            kidding? I'm already planning to rip this shit out for the audio
            buffer equivalent of Bresenham's run length algorithm.
