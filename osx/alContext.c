@@ -1269,7 +1269,7 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
 {
     Boolean isInput = isOutput ? FALSE : TRUE;
 	AudioDeviceID device;
-    AudioDeviceIOProc ioproc;
+    AudioDeviceIOProc ioproc = __alcMixDevice;
 	Boolean	writable;
     OSStatus error;
     UInt32 count;
@@ -1277,6 +1277,11 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
     AudioStreamBasicDescription	streamFormat;
     ALdevice *retval = NULL;
     AudioStreamBasicDescription	*streamFormats;
+
+    #if SUPPORTS_ALC_EXT_CAPTURE
+    if (isInput)
+        ioproc = __alcCaptureDevice;
+    #endif
 
     if (!__alcDoFirstInit())
         return(NULL);
@@ -1354,7 +1359,6 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
     // Set up default speaker attributes.
     __alcSetSpeakerDefaults(retval);
 
-    ioproc = ((isOutput) ? __alcMixDevice : __alcCaptureDevice);
 	if (AudioDeviceAddIOProc(device, ioproc, retval) != kAudioHardwareNoError)
     {
         AudioDeviceRemoveIOProc(device, ioproc);
@@ -1385,14 +1389,18 @@ ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
 ALCAPI ALvoid ALCAPIENTRY alcCloseDevice( ALCdevice *device )
 {
     ALdevice *dev = (ALdevice *) device;
-    AudioDeviceIOProc ioproc;
 
     // Contexts associated with this device still exist?
     if (dev->createdContexts[0] != NULL)
         __alcSetError(dev, ALC_INVALID);
     else
     {
-        ioproc = ((dev->isInputDevice) ? __alcCaptureDevice : __alcMixDevice);
+        AudioDeviceIOProc ioproc = __alcMixDevice;
+        #if SUPPORTS_ALC_EXT_CAPTURE
+        if (dev->isInputDevice)
+            ioproc = __alcCaptureDevice;
+        #endif
+
     	AudioDeviceStop(dev->device, ioproc);
 	    AudioDeviceRemoveIOProc(dev->device, ioproc);
 
