@@ -9,7 +9,7 @@ int main(int argc, char **argv)
     int buf_ptr = 0;
     FILE *io;
     ALenum format;
-    short data[8192];
+    short data[(64 * 1024) >> 1];
     ALsizei size;
     ALsizei freq;
     ALboolean loop;
@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     alGenSources(1, &sid);
     alGenBuffers(MAX_QUEUE_BUFFERS, bid);
 
-    while (!feof(io))
+    while ( (!feof(io)) && (!ferror(io)) )
     {
         alGetSourcei(sid, AL_BUFFERS_QUEUED, &queued);
         alGetSourcei(sid, AL_BUFFERS_PROCESSED, &processed);
@@ -56,26 +56,32 @@ int main(int argc, char **argv)
         {
             //printf("only %d of %d buffers queued.\n", (int) queued, MAX_QUEUE_BUFFERS);
             rc = fread(data, 1, sizeof (data), io);
-            if (rc > 0)
+            if (rc <= 0)
+                break;
+            else
             {
                 printf("buffering %d bytes to bid %d\n", rc, (int) bid[buf_ptr]);
                 alBufferData(bid[buf_ptr], AL_FORMAT_STEREO16, data, rc, 44100);
                 alSourceQueueBuffers(sid, 1, &bid[buf_ptr]);
                 buf_ptr++;
                 buf_ptr %= MAX_QUEUE_BUFFERS;
-		queued++;
+                queued++;
             }
-	}
+        }
 
-	    if(state != AL_PLAYING) {
-                printf("calling alSourcePlay...\n");
-			    alSourcePlay(sid);
-	    }
-	sleep(1);
+        if(state != AL_PLAYING)
+        {
+            printf("calling alSourcePlay...\n");
+            alSourcePlay(sid);
+        }
 
+        sleep(1);
     } // while
 
-    printf("eof.\n");
+    if (ferror(io))
+        printf("file i/o error!\n");
+    else if (feof(io))
+        printf("EOF.\n");
 
     fclose(io);
 
@@ -94,5 +100,5 @@ int main(int argc, char **argv)
     return(0);
 } // main
 
-// end of test.c ...
+// end of testqueueing.c ...
 
