@@ -511,7 +511,7 @@ static ALubyte *__alcDetermineDefaultDeviceName(ALvoid)
         return(NULL);
 
     return(buf);
-} // __alcDetermineDefaultDeficeName
+} // __alcDetermineDefaultDeviceName
 
 
 #if SUPPORTS_ALC_ENUMERATION_EXT
@@ -641,7 +641,8 @@ static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName, AudioDeviceID
 } // __alcDetermineDeviceID
 
 
-static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
+static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
+                                UInt32 frames, UInt32 framesize)
 {
     register ALsource *src;
     register ALsource **playingSources;
@@ -656,6 +657,7 @@ static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
     playingSources = ctx->playingSources;
     for (i = 0, srcs = playingSources; *srcs != NULL; srcs++, i++)
     {
+        register UInt8 *dst = _dst;
         register UInt32 srcframes = frames;
         register ALuint bufname;
 
@@ -700,9 +702,12 @@ static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
                     } // if
                 } // if
 
-                srcframes = buf->mixFunc(ctx, buf, src, dst, srcframes);
+                srcframes = buf->mixFunc(ctx, buf, src, (Float32 *) dst, srcframes);
                 if (srcframes)  // exhausted current buffer?
                 {
+                    // adjust for next buffer in queue's starting mix point.
+                    dst += (frames - srcframes) * framesize;
+
                     // !!! FIXME: Call rewind instead if looping...
                     if (buf->processedBuffer)
                     {
@@ -769,10 +774,12 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
     __alGrabDevice(dev);  // potentially long lock...
 
     ALcontext **ctxs;
-    Float32 *outDataPtr = (outOutputData->mBuffers[0]).mData;
-    UInt32 outDataSize = outOutputData->mBuffers[0].mDataByteSize;
+    UInt8 *outDataPtr = (UInt8 *) (outOutputData->mBuffers[0].mData);
+    UInt32 frames = outOutputData->mBuffers[0].mDataByteSize;
+    UInt32 framesize;
 
-    outDataSize /= (sizeof (Float32) * dev->streamFormat.mChannelsPerFrame);
+    framesize = (sizeof (Float32) * dev->streamFormat.mChannelsPerFrame);
+    frames /= framesize;
 
     for (ctxs = dev->createdContexts; *ctxs != NULL; ctxs++)
     {
@@ -783,7 +790,7 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
         //  swallow the cost of a mutex lock and function call to find out
         //  we don't really have to mix this context.
         if ((!ctx->suspended) && (ctx->playingSources[0] != NULL))
-            __alcMixContext(ctx, outDataPtr, outDataSize);
+            __alcMixContext(ctx, outDataPtr, frames, framesize);
     } // for
 
     __alUngrabDevice(dev);
@@ -804,11 +811,17 @@ ALCAPI ALCdevice* ALCAPIENTRY alcOpenDevice(const ALubyte *deviceName)
     UInt32 bufsize;
     AudioStreamBasicDescription	streamFormat;
     ALdevice *retval = NULL;
+    AudioStreamBasicDescription	*streamFormats;
 
     __alcDoFirstInit();
 
     if (__alcDetermineDeviceID(deviceName, &device) == AL_FALSE)
         return(NULL);
+
+    error = AudioDeviceGetPropertyInfo(device, 0, 0, kAudioDevicePropertyStreamFormats, &count, &writable);
+    if (error != kAudioHardwareNoError) return(NULL);
+    streamFormats = (AudioStreamBasicDescription *) alloca(count);
+    error = AudioDeviceGetProperty(device, 0, 0, kAudioDevicePropertyStreamFormats, &count, streamFormats);
 
     error = AudioDeviceGetPropertyInfo(device, 0, 0, kAudioDevicePropertyStreamFormat, &count, &writable);
     if (error != kAudioHardwareNoError) return(NULL);
