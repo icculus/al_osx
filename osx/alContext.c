@@ -658,7 +658,6 @@ static ALvoid __alcSetSpeakerDefaults(ALdevice *dev)
         dev->speakerazimuths[i] = 0.0f;
         dev->speakerelevations[i] = 0.0f;
         dev->speakergains[i] = 1.0f;
-        i++;
     } // for
 
     switch (dev->speakers)
