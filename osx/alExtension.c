@@ -46,14 +46,15 @@ static ALboolean extDetectAlwaysTrue(ALvoid)
 } // extDetectAlwaysTrue
 
 
-static struct
+typedef struct
 {
     const ALubyte *extName;
     ALboolean (*detect)(ALvoid);
     ALboolean isALC;
     ALboolean available;
-}
-__alExtensionTable[] =
+} __alExtensionItem;
+
+static __alExtensionItem __alExtensionTable[] =
 {
     #if SUPPORTS_AL_EXT_VECTOR_UNIT
     { "AL_EXT_vector_unit", extDetectVectorUnit, AL_FALSE, AL_FALSE },
@@ -72,7 +73,6 @@ __alExtensionTable[] =
     #endif
 
     //{ "AL_hint_MOJO", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
-    { NULL, NULL, AL_FALSE }
 };
 
 const ALubyte *__alCalculateExtensions(ALboolean isALC)
@@ -82,10 +82,11 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
     static ALubyte *__alcExtensionsString = NULL;
     if (__alExtensionsString == NULL)
     {
-        register size_t i;
-        register size_t len = 1;
+        size_t i;
+        size_t len = 1;
+        size_t max = sizeof (__alExtensionTable) / sizeof (__alExtensionItem);
 
-        for (i = 0; __alExtensionTable[i].extName != NULL; i++)
+        for (i = 0; i < max; i++)
         {
             if (!__alExtensionTable[i].isALC)
             {
@@ -100,7 +101,8 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
             return((const ALubyte *) "");  // better luck next time.
 
         __alExtensionsString[0] = '\0';
-        for (i = 0; __alExtensionTable[i].extName != NULL; i++)
+
+        for (i = 0; i < max; i++)
         {
             if ((__alExtensionTable[i].isALC) || (!__alExtensionTable[i].available))
                 continue;
@@ -114,8 +116,9 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
     {
         register size_t i;
         register size_t len = 1;
+        size_t max = sizeof (__alExtensionTable) / sizeof (__alExtensionItem);
 
-        for (i = 0; __alExtensionTable[i].extName != NULL; i++)
+        for (i = 0; i < max; i++)
         {
             if (__alExtensionTable[i].isALC)
             {
@@ -130,7 +133,8 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
             return((const ALubyte *) "");  // better luck next time.
 
         __alcExtensionsString[0] = '\0';
-        for (i = 0; __alExtensionTable[i].extName != NULL; i++)
+
+        for (i = 0; i < max; i++)
         {
             if ((!__alExtensionTable[i].isALC) || (!__alExtensionTable[i].available))
                 continue;
@@ -146,11 +150,12 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
 
 ALboolean __alIsExtensionPresent(const ALbyte *extName, ALboolean isALC)
 {
-    register size_t i;
+    size_t i;
+    size_t max = sizeof (__alExtensionTable) / sizeof (__alExtensionItem);
 
     __alCalculateExtensions(isALC);  // just in case.
 
-    for (i = 0; __alExtensionTable[i].extName != NULL; i++)
+    for (i = 0; i < max; i++)
     {
         if (__alExtensionTable[i].isALC == isALC)
         {
