@@ -6,6 +6,11 @@
 11162003 - Replaced all the downsamplers with Bresenham thingey, but who am I
            kidding? I'm already planning to rip this shit out for the audio
            buffer equivalent of Bresenham's run length algorithm.
+           Cleaned up source attribute management. Now we only recalculate
+           source mixing attributes if something has really changed, instead
+           of when alSource*() is called at all...this should cut down on
+           processing for apps that set source state every frame whether it
+           has changed or not. Removed tab characters from alSource.c.
 11122003 - Mono downsamplers now slow-but-correct...just a temporary hack to
            fix incorrect render of a sentence in the ArmyOps SFAVWID lecture.
            Cleaned up some tabs.

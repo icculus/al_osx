@@ -1,6 +1,9 @@
 - Resamplers need altivec versions.
 - Resamplers need to suck less.
 - Vorbis extension needs resampling to device format.
+- Vorbis extension missing altivec mixer for mono output.
+- Vorbis extension should cope with alignment to mix with Altivec whenever
+  humanly possible.
 - Capture extension
 - Pitch resampling.
 - Mono output.
@@ -18,9 +21,6 @@
   completely scalar mixing path. See mono mixers for reference.
 - Altivec mixer for stereo8 is missing.
 - Arbitrary downsampling is broken/slow.
-- Don't set src->needsRecalculation unless alSource*() value is different from
-  current state...some games set state every frame even if nothing has changed,
-  forcing every playing source to recalc every pass through the mixer.
 - Port to Linux.
 
 // end of TODO ...
