@@ -21,6 +21,7 @@
 - Don't set src->needsRecalculation unless alSource*() value is different from
   current state...some games set state every frame even if nothing has changed,
   forcing every playing source to recalc every pass through the mixer.
+- Port to Linux.
 
 // end of TODO ...
 
