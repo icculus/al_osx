@@ -1,0 +1,18 @@
+
+These tests are not meant to be robust, clean, coherent, or comprehensive.
+
+My command lines:
+
+cd /where/i/keep/al_osx/osx
+make
+gcc -I../include/AL -O3 -g -I../include -o test ./test/test.c \
+     ./openal.dylib -force_cpusubtype_ALL
+gcc -I../include/AL -O3 -g -I../include -o testqueueing ./test/testqueueing.c \
+     ./openal.dylib -force_cpusubtype_ALL
+
+test.c relies on you manually editing the source for various options. Both
+expect audio files with specific names in the current directory...read the
+source.
+
+--ryan.
+

@@ -1,0 +1,16 @@
+- Resamplers need altivec versions.
+- Vorbis extension needs resampling to device format.
+- Capture extension
+- Pitch resampling.
+- Mono output.
+- AL_FORMAT_STEREO_FLOAT32_EXT extension
+- AL_FORMAT_MONO_FLOAT32_EXT extension
+- > 2 channel output.
+- Make alExtension.c not suck.
+- Device enumeration is hacky.
+- Look for FIXMEs.
+- Remove ov_read_callbacks abstraction and use ogg buffer directly to
+  relieve memcpy pressure and reduce memory bandwidth.
+
+// end of TODO ...
+

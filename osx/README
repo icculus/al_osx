@@ -1,0 +1,46 @@
+OpenAL: A portable audio API.
+
+Please visit http://www.openal.org/ for API documentation.
+
+This implementation of the OpenAL API is _NOT_ the one from openal.org...it
+was originally based on the openal.org MacOS 9 version, but is an almost total
+rewrite of that codebase.
+
+This codebase is designed around and optimized for MacOS X and its CoreAudio
+API. It does not work on MacOS 9 at all. Some notable features that set it
+apart from the standard openal.org Mac implementation:
+
+- Speed. This is currently the fastest AL implementation for OSX.
+- Contains optimizations for Altivec-enabled systems, but has scalar fallbacks
+  for G3 and older systems.
+- Is designed with multithreading in mind...should be 100% thread safe, and
+  can take advantage of multiple CPU systems internally.
+- Can handle multiple contexts on multiple devices, all running in parallel.
+- Supports the AL_ENUMERATION_EXT extension for device enumeration.
+- Supports AL_EXT_vorbis for direct playback of Ogg Vorbis audio; the Vorbis
+  decoder is a highly optimized and Altivec-enabled fork of xiph.org's
+  libvorbis-1.0...using this extension can be significantly faster and
+  easier for the application than using a stock libvorbis and buffer queueing.
+- Codebase is designed to be maintainable and flexible. Adding new data
+  types (as demostrated by AL_EXT_vorbis) is fairly easy.
+- Supports AL_EXT_buffer_offset, which is basically an extended form of
+  AL_BYTE_LOKI, for when you have to get down and dirty at the lowlevel of
+  audio playback.
+- Supports IBM's G5 compiler.
+
+This implementation is fairly robust, but in many ways can still be considered
+a "mini-AL" library...it is enough to play UT2003 well, but some features of a
+complete OpenAL library are missing, and some elements are not perfectly in
+line with the 1.0 specification at this time. Bug reports and patches to make
+the implementation more robust are welcome.
+
+Please see the file COPYING for licensing information, TODO for things still
+to be done, and INSTALL for basic installation instructions.
+
+Bug reports can go to my personal email address for now. If this software
+proves to be wildly popular, I'll set up a mailing list for it. There are
+mailing lists details for general OpenAL development questions unrelated to
+a specific implementation at www.openal.org.
+
+--ryan. (icculus@clutteredmind.org)
+

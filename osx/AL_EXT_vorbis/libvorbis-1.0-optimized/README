@@ -1,0 +1,36 @@
+********************************************************************
+*                                                                  *
+* THIS FILE IS PART OF THE OggVorbis SOFTWARE CODEC SOURCE CODE.   *
+* USE, DISTRIBUTION AND REPRODUCTION OF THIS LIBRARY SOURCE IS     *
+* GOVERNED BY A BSD-STYLE SOURCE LICENSE INCLUDED WITH THIS SOURCE *
+* IN 'COPYING'. PLEASE READ THESE TERMS BEFORE DISTRIBUTING.       *
+*                                                                  *
+* THE OggVorbis SOURCE CODE IS (C) COPYRIGHT 1994-2002             *
+* by the Xiph.Org Foundation http://www.xiph.org/                  *
+*                                                                  *
+********************************************************************
+
+This is a mangled version of libvorbis-1.0. If you want the clean,
+cross-platform version of this, please visit xiph.org.
+
+This version is optimized for MacOSX...a LOT of the code is vectorized with
+Altivec (but should still work on a pre-G4). Other pieces of code were also
+redesigned to run faster in a general sense.
+
+All the extraneous files (autoconf, etc) have been stripped out...this is all
+meant to be specially built and statically linked into this Mac-specific AL.
+If you were to merge the changes back into the mainline AL release, you would
+need to:
+
+  - #define MACOSX on the compiler commandline.
+  - Implement _vorbis_has_vector_unit() (see libvorbis's misc.h). We check
+    a global variable in OpenAL, but you should find a good place to call
+    Gestalt() in libvorbis to determine if the system has an Altivec unit and
+    set a static variable in libvorbis appropriately.
+  - The software should still build on non-Mac systems, but you will probably
+    want to fill in SSE (or whatever) support and set
+    _vorbis_has_vector_unit() appropriately. By default, this should be
+    #defined to zero and thus the vectorized stuff should compile out.
+
+--ryan. (icculus@clutteredmind.org)
+

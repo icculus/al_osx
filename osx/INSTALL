@@ -1,0 +1,23 @@
+
+Building on MacOSX:
+
+ - Have the Apple developer tools installed. (http://developer.apple.com/)
+ - Run "make" in this directory. This will build openal.dylib, optimized,
+   with support for our various extensions enabled.
+ - There are options at the top of "makefile" if you want to disable
+   various extensions, optimizations, or use IBM's compiler instead.
+ - To use the compiled library, copy the .dylib into your project, and link
+   against it directly or dynamically load it and use alGetProcAddress() to
+   obtain the entry points. When linking against it directly, the OS will
+   expect to find the .dylib in the same directory as your application's
+   binary at runtime, which makes it convenient for shipping it with your
+   software. Ideally, you want to structure your program so you can swap this
+   .dylib out with a different implementation in the future without having to
+   change/recompile the program itself.
+
+There is no Project Builder support at this time, and this does not build a
+framework. There is no "make install". Support for these things are welcome,
+so long as they don't screw with my ability to type "make" and go.  :)
+
+--ryan.
+
