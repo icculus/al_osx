@@ -733,7 +733,8 @@ static ALvoid __alcMixContext(ALcontext *ctx, Float32 *dst, UInt32 frames)
     if (firstDeadSource != -1) // some or all sources have stopped.
     {
         register ALsizei i = firstDeadSource;
-        for (srcs = playingSources + i; i < playCount; srcs++)
+        playingSources += i;
+        for (srcs = playingSources + 1; i < playCount; srcs++)
         {
             if (*srcs != NULL)
             {
