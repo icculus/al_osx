@@ -252,68 +252,83 @@ ALAPI ALvoid ALAPIENTRY alSourcef (ALuint source, ALenum pname, ALfloat value)
 {
     ALsource *src;
 	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
-    register ALboolean needsRecalc = AL_TRUE;
+    register ALboolean needsRecalc = AL_FALSE;
 
     if (ctx != NULL)
 	{
 		switch(pname) 
 		{
 			case AL_PITCH:
-				if (value>=0.0f)
-					src->pitch = value;
-				else
+				if (value < 0.0f)
 					__alSetError(AL_INVALID_VALUE);
+                else
+                {
+                    needsRecalc = (src->pitch != value);
+					src->pitch = value;
+                } // else
 				break;
 
 			case AL_GAIN:
-				if (value>=0.0f)
-					src->gain = value;
-				else
+				if (value < 0.0f)
 					__alSetError(AL_INVALID_VALUE);
+                else
+                {
+                    needsRecalc = (src->gain != value);
+					src->gain = value;
+                } // else
 				break;
 
 			case AL_MAX_DISTANCE:
-				if (value>=0.0f)
-					src->maxDistance = value;
-				else
+				if (value < 0.0f)
 					__alSetError(AL_INVALID_VALUE);
-				break;
+                else
+                {
+                    needsRecalc = (src->maxDistance != value);
+					src->maxDistance = value;
+                } // else
 
 			case AL_MIN_GAIN:
-				if ((value >= 0.0f) && (value <= 1.0f))
-					src->minGain = value;
-				else
+				if ((value < 0.0f) || (value > 1.0f))
 					__alSetError(AL_INVALID_VALUE);
+                else
+                {
+                    needsRecalc = (src->minGain != value);
+					src->minGain = value;
+                } // else
 				break;
 
 			case AL_MAX_GAIN:
-				if ((value >= 0.0f) && (value <= 1.0f))
-					src->maxGain = value;
-				else
+				if ((value < 0.0f) || (value > 1.0f))
 					__alSetError(AL_INVALID_VALUE);
+                else
+                {
+                    needsRecalc = (src->maxGain != value);
+					src->maxGain = value;
+                } // else
 				break;
 
 			case AL_ROLLOFF_FACTOR:
-				if (value > 0.0f)
-				{
-					if (value <= 1.0f) // clamp to 1.0f because implementation breaks above 1.0f
-						src->rolloffFactor = value;
-				} // if
-                else
-				{
+				if (value <= 0.0f)
 					__alSetError(AL_INVALID_VALUE);
-				} // else
+                else
+                {
+                    if (value > 1.0f) value = 1.0f;  // !!! FIXME: don't clamp this.
+                    needsRecalc = (src->rolloffFactor != value);
+					src->rolloffFactor = value;
+                } // else
 				break;
 
 			case AL_REFERENCE_DISTANCE:
-				if (value > 0.0f)
-					src->referenceDistance = value;
-				else
+				if (value <= 0.0f)
 					__alSetError(AL_INVALID_VALUE);
+                else
+                {
+                    needsRecalc = (src->referenceDistance != value);
+					src->referenceDistance = value;
+                } // else
 				break;
 
 			default:
-                needsRecalc = AL_FALSE;
 				__alSetError(AL_INVALID_OPERATION);
 				break;
 		} // switch
@@ -329,31 +344,37 @@ ALAPI ALvoid ALAPIENTRY alSourcef (ALuint source, ALenum pname, ALfloat value)
 ALAPI ALvoid ALAPIENTRY alSourcefv (ALuint source, ALenum pname, ALfloat *values)
 {
     ALsource *src;
-    register ALboolean needsRecalc = AL_TRUE;
+    register ALboolean needsRecalc = AL_FALSE;
 	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
     if (ctx != NULL)
 	{
     	switch(pname) 
 	    {
 		    case AL_POSITION:
-			    src->Position[0]=values[0];
-    			src->Position[1]=values[1];
-	    		src->Position[2]=values[2];
+                needsRecalc = ((src->Position[0] != values[0]) ||
+                               (src->Position[1] != values[1]) ||
+                               (src->Position[2] != values[2]));
+                if (needsRecalc)
+                {
+    	    		src->Position[0]=values[0];
+	    	    	src->Position[1]=values[1];
+		    	    src->Position[2]=values[2];
+                } // if
 		    	break;
 
-    		case AL_DIRECTION:
-                needsRecalc = AL_FALSE;
-	    	    __alSetError(AL_INVALID_ENUM); // cone functions not implemented yet
-		        break;
-
     		case AL_VELOCITY:
-	    		src->Velocity[0]=values[0];
-		    	src->Velocity[1]=values[1];
-			    src->Velocity[2]=values[2];
+                needsRecalc = ((src->Velocity[0] != values[0]) ||
+                               (src->Velocity[1] != values[1]) ||
+                               (src->Velocity[2] != values[2]));
+                if (needsRecalc)
+                {
+    	    		src->Velocity[0]=values[0];
+	    	    	src->Velocity[1]=values[1];
+		    	    src->Velocity[2]=values[2];
+                } // if
     			break;
 
 	    	default:
-                needsRecalc = AL_FALSE;
     			__alSetError(AL_INVALID_ENUM);
     			break;
 	    } // switch
@@ -368,34 +389,15 @@ ALAPI ALvoid ALAPIENTRY alSourcefv (ALuint source, ALenum pname, ALfloat *values
 
 ALAPI ALvoid ALAPIENTRY alSource3f (ALuint source, ALenum pname, ALfloat v1, ALfloat v2, ALfloat v3)
 {
-    ALsource *src;
-    register ALboolean needsRecalc = AL_TRUE;
-	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
-    if (ctx != NULL)
-	{
-	    switch(pname) 
-    	{
-    		case AL_POSITION:
-	    		src->Position[0]=v1;
-		    	src->Position[1]=v2;
-			    src->Position[2]=v3;
-    			break;
-	    	case AL_VELOCITY:
-		    	src->Velocity[0]=v1;
-			    src->Velocity[1]=v2;
-    			src->Velocity[2]=v3;
-	    		break;
-		    default:
-                needsRecalc = AL_FALSE;
-    			__alSetError(AL_INVALID_ENUM);
-	    		break;
-    	} // switch
-
-        if (needsRecalc)
-            src->needsRecalculation = AL_TRUE;
-
-        __alUngrabContext(ctx);
+    // for now, this is good enough.
+    if ((pname == AL_POSITION) || (pname == AL_VELOCITY))
+    {
+        ALfloat vector[3] = {v1, v2, v3};
+        alSourcefv(source, pname, vector);
+        return;
     } // if
+
+    __alSetError(AL_INVALID_ENUM);
 } // alSource3f
 
 
@@ -404,7 +406,7 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
     ALsource *src;
     ALbuffer *buf;
     ALuint tmp;
-    register ALboolean needsRecalc = AL_TRUE;
+    register ALboolean needsRecalc = AL_FALSE;
 	register ALcontext *ctx = __alGrabContextAndGetSource(source, &src);
 
     if (ctx != NULL)
@@ -412,13 +414,11 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
 	    switch(pname) 
 		{
 			case AL_LOOPING:
-                needsRecalc = AL_FALSE;
 				src->looping = value;
 				break;
 
             // AL_BUFFER nukes the buffer queue and replaces it with a one-entry queue.
 			case AL_BUFFER:
-                needsRecalc = AL_FALSE;
 				if ((src->state != AL_STOPPED) && (src->state != AL_INITIAL))
 					__alSetError(AL_INVALID_OPERATION);
                 else
@@ -447,18 +447,17 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
 				break;
 
             case AL_SOURCE_RELATIVE:
-                if ((value == AL_FALSE) || (value == AL_TRUE))
-                    src->srcRelative = value;
-		        else
-                {
-                    needsRecalc = AL_FALSE;
+                if ((value != AL_FALSE) && (value != AL_TRUE))
                     __alSetError(AL_INVALID_VALUE);
+                else
+                {
+                    needsRecalc = (src->srcRelative != value);
+                    src->srcRelative = value;
                 } // else
                 break;
 
             #if SUPPORTS_AL_EXT_BUFFER_OFFSET
             case AL_BUFFER_OFFSET_EXT:
-                needsRecalc = AL_FALSE;
                 buf = __alGetPlayingBuffer(ctx, src);
                 if (buf == NULL)
                     __alSetError(AL_ILLEGAL_COMMAND);
@@ -476,7 +475,6 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
             #endif
 
 			default:
-                needsRecalc = AL_FALSE;
 				__alSetError(AL_INVALID_ENUM);
 				break;
 		} // switch
