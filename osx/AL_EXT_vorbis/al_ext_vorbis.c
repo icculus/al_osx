@@ -141,8 +141,7 @@ static inline ALvoid __alMixVorbisStereo_altivec(ALcontext *ctx, ALsource *src,
     register vector unsigned char permute2 = vec_splat_u8(8);
     permute2 = vec_add(permute1, permute2);
 
-    // !!! FIXME: Epsilon?
-    if (gain == 1.0f)  // No attenuation, just interleave the samples and mix.
+    if (EPSILON_EQUAL(gain, 1.0f))  // No attenuation, just interleave the samples and mix.
     {
         while (samples >= 4)
         {
@@ -227,8 +226,7 @@ static inline ALvoid __alMixVorbisStereo(ALcontext *ctx, ALsource *src,
     {
         register Float32 gain = src->gain * ctx->listener.Gain;
 
-        // !!! FIXME: Epsilon?
-        if (gain == 1.0f)  // No attenuation, just interleave the samples and mix.
+        if (EPSILON_EQUAL(gain, 1.0f))  // No attenuation, just interleave the samples and mix.
         {
             while (samples--)
             {
