@@ -28,7 +28,6 @@
 // !!! FIXME: altivec this whole file. --ryan.
 
 
-// !!! FIXME: RecipEstimate/Newton-Raphson sqrt version is busted.
 #define FORCE_STD_SQRT 0
 
 // Square root stuff. Use faster, single precision versions.
