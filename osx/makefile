@@ -29,7 +29,7 @@
 # If you don't already know what the various SUPPORT_* things do,
 #  leave them alone.
 
-OPTIMIZE := false
+OPTIMIZE := true
 USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := true
@@ -69,7 +69,7 @@ else
   COMPILERFLAGS := -Wall -Werror -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
   ifeq ($(strip $(OPTIMIZE)),true)
     OPTIMIZATIONS := -O3 -D_NDEBUG=1 -falign-loops=16 -ffast-math -fexpensive-optimizations -fno-common -fno-math-errno
-    ifeq ($(strip $(USE_G5_OPCODES),true)
+    ifeq ($(strip $(USE_G5_OPCODES)),true)
       OPTIMIZATIONS += -mpowerpc-gpopt -mpowerpc64 -mcpu=970 -march=970 -DFORCE_STD_SQRT=1
     endif
   else

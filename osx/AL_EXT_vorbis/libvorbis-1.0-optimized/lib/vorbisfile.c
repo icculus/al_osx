@@ -11,7 +11,7 @@
  ********************************************************************
 
  function: stdio-based convenience library for opening/seeking/decoding
- last mod: $Id: vorbisfile.c,v 1.2 2004/01/27 18:39:13 icculus Exp $
+ last mod: $Id: vorbisfile.c,v 1.3 2004/06/14 17:03:42 icculus Exp $
 
  ********************************************************************/
 
@@ -933,8 +933,8 @@ int ov_raw_seek(OggVorbis_File *vf,ogg_int64_t pos){
     ogg_packet op;
     int lastblock=0;
     int accblock=0;
-    int thisblock;
-    int eosflag;
+    int thisblock=0;
+    int eosflag = 0;
 
     ogg_stream_init(&work_os,-1); /* get the memory ready */
 
