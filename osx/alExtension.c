@@ -60,6 +60,10 @@ static __alExtensionItem __alExtensionTable[] =
     { "AL_EXT_vorbis", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
     #endif
 
+    #if SUPPORTS_AL_EXT_MP3
+    { "AL_EXT_mp3", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
+    #endif
+
     #if SUPPORTS_AL_EXT_FLOAT32
     { "AL_EXT_float32", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
     #endif
@@ -354,6 +358,10 @@ ALAPI ALenum ALAPIENTRY alGetEnumValue (const ALubyte *ename)
 
     #if SUPPORTS_AL_EXT_VORBIS
     ENUM_VALUE(AL_FORMAT_VORBIS_EXT);
+    #endif
+
+    #if SUPPORTS_AL_EXT_MP3
+    ENUM_VALUE(AL_FORMAT_MP3_EXT);
     #endif
 
     #if SUPPORTS_AL_EXT_BUFFER_OFFSET

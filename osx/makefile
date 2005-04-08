@@ -29,16 +29,17 @@
 # If you don't already know what the various SUPPORT_* things do,
 #  leave them alone.
 
-OPTIMIZE := true
+OPTIMIZE := false
 USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := true
 USE_IBM_COMPILER := false
 USE_VBAP := false
 SUPPORT_ALC_ENUMERATION_EXT := true
-SUPPORT_ALC_EXT_CAPTURE := true
+SUPPORT_ALC_EXT_CAPTURE := false
 SUPPORT_ALC_EXT_SPEAKER_ATTRS := false
 SUPPORT_AL_EXT_VORBIS := true
+SUPPORT_AL_EXT_MP3 := true
 SUPPORT_AL_EXT_VECTOR_UNIT := true
 SUPPORT_AL_EXT_BUFFER_OFFSET := true
 SUPPORT_AL_EXT_FLOAT32 := true
@@ -68,7 +69,7 @@ else
   COMPILER := gcc
   COMPILERFLAGS := -Wall -Werror -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
   ifeq ($(strip $(OPTIMIZE)),true)
-    OPTIMIZATIONS := -O3 -D_NDEBUG=1 -falign-loops=16 -ffast-math -fexpensive-optimizations -fno-common -fno-math-errno
+    OPTIMIZATIONS := -O3 -D_NDEBUG=1 -falign-loops=16 -ffast-math -fexpensive-optimizations -fno-math-errno
     ifeq ($(strip $(USE_G5_OPCODES)),true)
       OPTIMIZATIONS += -mpowerpc-gpopt -mpowerpc64 -mcpu=970 -march=970 -DFORCE_STD_SQRT=1
     endif
@@ -87,7 +88,7 @@ else
   CC := $(COMPILER)
 endif
 
-CFLAGS := -g $(OPTIMIZATIONS) $(COMPILERFLAGS) -D_REENTRANT -c -I../include/AL -I. -DMACOSX=1
+CFLAGS := -g -fno-common $(OPTIMIZATIONS) $(COMPILERFLAGS) -D_REENTRANT -c -I../include/AL -I. -DMACOSX=1
 LDFLAGS := -g -fno-common -dynamiclib -framework CoreAudio -framework CoreServices -compatibility_version 1.0.0 -install_name @executable_path/openal.dylib
 
 SRCS := alContext.c \
@@ -165,6 +166,20 @@ ifeq ($(strip $(SUPPORT_AL_EXT_VORBIS)),true)
             AL_EXT_vorbis/al_ext_vorbis.c
 endif
 
+ifeq ($(strip $(SUPPORT_AL_EXT_MP3)),true)
+    MPGLIB_DIR := AL_EXT_mp3/mpglib
+    CFLAGS += -DSUPPORTS_AL_EXT_MP3=1 -I$(MPGLIB_DIR)
+    SRCS += $(MPGLIB_DIR)/dct64_i386.c \
+			$(MPGLIB_DIR)/decode_i386.c \
+			$(MPGLIB_DIR)/interface.c \
+			$(MPGLIB_DIR)/layer1.c \
+			$(MPGLIB_DIR)/layer2.c \
+			$(MPGLIB_DIR)/layer3.c \
+			$(MPGLIB_DIR)/mpglib_common.c \
+			$(MPGLIB_DIR)/tabinit.c \
+            AL_EXT_mp3/al_ext_mp3.c
+endif
+
 OBJS := $(SRCS:.c=.o)
 
 all: $(LIB)
@@ -180,4 +195,3 @@ $(LIB) : $(OBJS)
 	gcc -o $@ $(LDFLAGS) $^ $(EXTRALIBS)
 
 # end of makefile ...
-

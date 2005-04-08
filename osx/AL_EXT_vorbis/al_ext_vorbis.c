@@ -279,7 +279,7 @@ static inline ALvoid __alMixVorbisStereo(ALcontext *ctx, ALsource *src,
 } // __alMixVorbisStereo
 
 
-UInt32 __alMixVorbis(struct ALcontext_struct *ctx, struct ALbuffer_struct *buf,
+static UInt32 __alMixVorbis(struct ALcontext_struct *ctx, struct ALbuffer_struct *buf,
                      struct ALsource_struct *src, Float32 *dst, UInt32 frames)
 {
     register UInt32 channels = ctx->device->streamFormat.mChannelsPerFrame;

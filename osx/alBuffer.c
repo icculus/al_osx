@@ -1337,6 +1337,19 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
             break;
         #endif
 
+        #if SUPPORTS_AL_EXT_MP3
+        case AL_FORMAT_MP3_EXT:
+            printf("buffering mp3 data...\n");
+            resample = __alResampleSimpleMemcpy;
+            alwaysDoConvert = AL_TRUE;  // obviously, this is specialized.
+            newAlloc = size;
+            buffer->bits = 16;
+            buffer->channels = 2;
+            buffer->compressed = AL_TRUE;
+            __alBufferDataFromMP3(buffer);
+            break;
+        #endif
+
         #if SUPPORTS_AL_EXT_FLOAT32
         case AL_FORMAT_MONO_FLOAT32:
             //printf("buffering mono-float32 data...\n");

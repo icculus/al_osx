@@ -449,6 +449,13 @@ ALboolean __alIsExtensionPresent(const ALbyte *extName, ALboolean isALC);
   ALvoid __alBufferDataFromVorbis(ALbuffer *buf);
 #endif // SUPPORTS_AL_EXT_VORBIS
 
+#if SUPPORTS_AL_EXT_MP3
+  #ifndef AL_FORMAT_MP3_EXT
+    #define AL_FORMAT_MP3_EXT 0x10004
+  #endif
+
+  ALvoid __alBufferDataFromMP3(ALbuffer *buf);
+#endif // SUPPORTS_AL_EXT_MP3
 
 #if SUPPORTS_AL_EXT_BUFFER_OFFSET
   #ifndef AL_BUFFER_OFFSET_EXT

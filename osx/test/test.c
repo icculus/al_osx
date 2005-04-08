@@ -8,12 +8,13 @@
 
 
 #define LOAD_VORBIS 0
-#define LOAD_WAV 1
+#define LOAD_MP3 1
+#define LOAD_WAV 0
 #define TEST_BUFFER_DATA 0
 #define DUMP_WAV 0
 #define TEST_AL_EXT_BUFFER_OFFSET 0
-#define TEST_SPATIALIZATION 1
-#define TEST_LOOPING 1
+#define TEST_SPATIALIZATION 0
+#define TEST_LOOPING 0
 
 int main(int argc, char **argv)
 {
@@ -110,6 +111,30 @@ int main(int argc, char **argv)
 
     alenum = alGetEnumValue("AL_FORMAT_VORBIS_EXT");
     io = fopen("sample.ogg", "rb");
+    if (io == NULL) { printf("file open failed.\n"); return(0); }
+    fstat(fileno(io), &statbuf);
+    size = statbuf.st_size;
+    data = malloc(size);
+    fread(data, size, 1, io);
+    fclose(io);
+    loop = AL_TRUE;
+
+    #if TEST_BUFFER_DATA
+    for (i = 0; i < 5000; i++)
+    #endif
+        alBufferData(bid, alenum, data, size, 0);
+  }
+#elif LOAD_MP3
+  {
+    struct stat statbuf;
+    if (!alIsExtensionPresent("AL_EXT_mp3"))
+    {
+        printf("No mp3 support.\n");
+        return(0);
+    } // if
+
+    alenum = alGetEnumValue("AL_FORMAT_MP3_EXT");
+    io = fopen("sample.mp3", "rb");
     if (io == NULL) { printf("file open failed.\n"); return(0); }
     fstat(fileno(io), &statbuf);
     size = statbuf.st_size;
