@@ -1339,7 +1339,7 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 
         #if SUPPORTS_AL_EXT_MP3
         case AL_FORMAT_MP3_EXT:
-            printf("buffering mp3 data...\n");
+            //printf("buffering mp3 data...\n");
             resample = __alResampleSimpleMemcpy;
             alwaysDoConvert = AL_TRUE;  // obviously, this is specialized.
             newAlloc = size;
