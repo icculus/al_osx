@@ -29,20 +29,20 @@
 # If you don't already know what the various SUPPORT_* things do,
 #  leave them alone.
 
-OPTIMIZE := false
+OPTIMIZE := true
 USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := true
 USE_IBM_COMPILER := false
 USE_VBAP := false
-SUPPORT_ALC_ENUMERATION_EXT := true
+SUPPORT_ALC_ENUMERATION_EXT := false
 SUPPORT_ALC_EXT_CAPTURE := false
 SUPPORT_ALC_EXT_SPEAKER_ATTRS := false
-SUPPORT_AL_EXT_VORBIS := true
-SUPPORT_AL_EXT_MP3 := true
+SUPPORT_AL_EXT_VORBIS := false
+SUPPORT_AL_EXT_MP3 := false
 SUPPORT_AL_EXT_VECTOR_UNIT := true
-SUPPORT_AL_EXT_BUFFER_OFFSET := true
-SUPPORT_AL_EXT_FLOAT32 := true
+SUPPORT_AL_EXT_BUFFER_OFFSET := false
+SUPPORT_AL_EXT_FLOAT32 := false
 
 # ----------------------------------------------------------------------------
 # Don't touch this stuff unless you know what you're doing.

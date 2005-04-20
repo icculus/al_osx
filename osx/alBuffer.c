@@ -212,7 +212,12 @@ ALAPI ALvoid ALAPIENTRY alDeleteBuffers(ALsizei n, ALuint *buffers)
 ALAPI ALboolean ALAPIENTRY alIsBuffer(ALuint buffer)
 {
     ALbuffer *buf;
-    register ALcontext *ctx = __alGrabContextAndGetBuffer(buffer, &buf);
+    register ALcontext *ctx;
+
+    if (buffer == 0)  // !!! FIXME: should this return AL_TRUE?
+        return(AL_TRUE);
+
+    ctx = __alGrabContextAndGetBuffer(buffer, &buf);
 
     // ctx will be null if there's no context or the buffer name is bogus.
     if (ctx == NULL)

@@ -335,6 +335,9 @@ ALAPI ALvoid ALAPIENTRY alSourcef (ALuint source, ALenum pname, ALfloat value)
                 } // else
                 break;
 
+            case AL_CONE_OUTER_GAIN:
+                break;   // !!! FIXME: unsupported right now.
+
             default:
                 __alSetError(AL_INVALID_OPERATION);
                 break;
@@ -403,6 +406,9 @@ ALAPI ALvoid ALAPIENTRY alSource3f (ALuint source, ALenum pname, ALfloat v1, ALf
         alSourcefv(source, pname, vector);
         return;
     } // if
+
+    if (pname == AL_DIRECTION)
+        return;  // !!! FIXME: not supported right now.
 
     __alSetError(AL_INVALID_ENUM);
 } // alSource3f
@@ -480,6 +486,11 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
                 break;
             } // case
             #endif
+
+            case AL_CONE_INNER_ANGLE:
+            case AL_CONE_OUTER_ANGLE:
+            case AL_CONE_OUTER_GAIN:
+                break;   // !!! FIXME: unsupported right now.
 
             default:
                 __alSetError(AL_INVALID_ENUM);

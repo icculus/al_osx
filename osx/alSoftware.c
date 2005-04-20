@@ -134,7 +134,6 @@ ALboolean __alConvertFromMonoFloat32(Float32 *s, UInt8 *d,
                                      ALenum fmt, ALsizei samples)
 {
     // !!! FIXME: Altivec this!
-    register Float32 samp;
     register Float32 *src = s;
     register ALsizei i;
 
@@ -147,6 +146,7 @@ ALboolean __alConvertFromMonoFloat32(Float32 *s, UInt8 *d,
 
         case AL_FORMAT_STEREO_FLOAT32:
         {
+            register Float32 samp;
             register Float32 *dst = (Float32 *) d;
             for (i = 0; i < samples; i++)
             {

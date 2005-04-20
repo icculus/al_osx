@@ -1021,6 +1021,7 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
 
         if (src->state == AL_PLAYING)
         {
+            register int stallcount = 0;
             while (srcframes)
             {
                 if (src->bufferPos >= src->bufferCount)
@@ -1056,9 +1057,22 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
                     } // if
                 } // if
 
-                srcframes = buf->mixFunc(ctx, buf, src, (Float32 *) dst, srcframes);
+                // mixFunc can be null if no data is associated with buffer.
+                //  This is an app error, I think.
+                if (buf->mixFunc != NULL)
+                    srcframes = buf->mixFunc(ctx, buf, src, (Float32 *) dst, srcframes);
+
                 if (srcframes)  // exhausted current buffer?
                 {
+                    // !!! FIXME: lame hack...happens if you have a looping
+                    // !!! FIXME:  source that makes no progress (all zero
+                    // !!! FIXME:  buffers, etc)...
+                    if (srcframes == frames)  // stalled?
+                    {
+                        if (++stallcount >= 3)
+                            srcframes = 0;  // just break the loop.
+                    } // if
+
                     // adjust for next buffer in queue's starting mix point.
                     dst += (frames - srcframes) * framesize;
 

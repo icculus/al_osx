@@ -102,6 +102,10 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
         size_t len = 1;
         size_t max = sizeof (__alExtensionTable) / sizeof (__alExtensionItem);
 
+        // prevent compiler bitching if function isn't used...
+        ALboolean t = extDetectAlwaysTrue();
+        if (t) { t = AL_FALSE; }
+
         for (i = 0; i < max; i++)
         {
             if (!__alExtensionTable[i].isALC)
