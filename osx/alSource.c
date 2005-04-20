@@ -440,7 +440,7 @@ ALAPI ALvoid ALAPIENTRY alSourcei (ALuint source, ALenum pname, ALint value)
                     {
                         // !!! FIXME: This is yucky. Use logic in alBuffer.c...
                         ALboolean valid = AL_FALSE;
-                        valid = ( ((value - 1) < AL_MAXBUFFERS) &&
+                        valid = ( (value > 0) && ((value - 1) < AL_MAXBUFFERS) &&
                                       (ctx->buffers[value - 1].inUse) );
 
                         if (valid)
