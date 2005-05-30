@@ -817,7 +817,7 @@ static ALubyte *__alcDetermineDefaultDeviceName(ALboolean isOutput)
     OSStatus error;
     UInt32 count;
     AudioDeviceID dev;
-    static char *buf = NULL;  // !!! FIXME: Minor memory leak.
+    static ALubyte *buf = NULL;  // !!! FIXME: Minor memory leak.
     AudioHardwarePropertyID defDev;
 
     if (buf) return(buf);  // !!! FIXME: Can the default change during the lifetime of the system?
@@ -913,7 +913,7 @@ static ALubyte *__alcDetermineDeviceNameList(ALboolean isOutput)
         } // if
     } // for
 
-    return(buf);
+    return((ALubyte *) buf);
 } // __alcDetermineDeviceNameList
 #endif
 
@@ -948,7 +948,7 @@ static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName,
 
     // Try to find a device name that matches request...
 
-    nameLen = (UInt32) (strlen(deviceName) + 1);
+    nameLen = (UInt32) (strlen((const char *) deviceName) + 1);
     nameBuf = alloca((size_t) nameLen);
     if (nameBuf == NULL)
         return(AL_FALSE);

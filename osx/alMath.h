@@ -35,7 +35,7 @@
 //  use _more_ Altivec, since we can guarantee your processor has it.
 
 // 4 for Altivec-happiness, but we only need 3.
-typedef ALfloat ALvector[4] __attribute__((packed,aligned(16)));
+typedef ALfloat ALvector[4] __attribute__((aligned(16)));
 
 #define DIVBY32767 0.000030519f
 #define DIVBY127   0.007874016f

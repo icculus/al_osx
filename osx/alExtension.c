@@ -48,7 +48,7 @@ static ALboolean extDetectAlwaysTrue(ALvoid)
 
 typedef struct
 {
-    const ALubyte *extName;
+    const char *extName;
     ALboolean (*detect)(ALvoid);
     ALboolean isALC;
     ALboolean available;
@@ -127,8 +127,8 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
             if ((__alExtensionTable[i].isALC) || (!__alExtensionTable[i].available))
                 continue;
             if (__alExtensionsString[0])
-                strcat(__alExtensionsString, " ");
-            strcat(__alExtensionsString, __alExtensionTable[i].extName);
+                strcat((char *) __alExtensionsString, " ");
+            strcat((char *) __alExtensionsString, __alExtensionTable[i].extName);
         } // for
     } // if
 
@@ -159,8 +159,8 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
             if ((!__alExtensionTable[i].isALC) || (!__alExtensionTable[i].available))
                 continue;
             if (__alcExtensionsString[0])
-                strcat(__alcExtensionsString, " ");
-            strcat(__alcExtensionsString, __alExtensionTable[i].extName);
+                strcat((char *) __alcExtensionsString, " ");
+            strcat((char *) __alcExtensionsString, __alExtensionTable[i].extName);
         } // for
     } // if
 
@@ -168,7 +168,7 @@ const ALubyte *__alCalculateExtensions(ALboolean isALC)
 } // __alCalculateExtensions
 
 
-ALboolean __alIsExtensionPresent(const ALbyte *extName, ALboolean isALC)
+ALboolean __alIsExtensionPresent(const ALubyte *extName, ALboolean isALC)
 {
     size_t i;
     size_t max = sizeof (__alExtensionTable) / sizeof (__alExtensionItem);
@@ -179,7 +179,7 @@ ALboolean __alIsExtensionPresent(const ALbyte *extName, ALboolean isALC)
     {
         if (__alExtensionTable[i].isALC == isALC)
         {
-            if (strcmp(__alExtensionTable[i].extName, extName) == 0)
+            if (strcmp((const char *) __alExtensionTable[i].extName, (const char *) extName) == 0)
             {
                 if (__alExtensionTable[i].available)
                     return(AL_TRUE);

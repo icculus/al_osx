@@ -12,7 +12,9 @@
 #
 # Mac users with G4's should set the USE_G4_OPCODES option to "true".
 #  This will use Altivec in places we wouldn't if we needed to check for
-#  availability, but the shared library will crash on a G3 or older CPU.
+#  availability, but the shared library will crash on a G3 or older CPU. We
+#  set a few generic compiler flags to encourage it to build code tuned for
+#  the G4, too.
 #
 # Please note that if you don't set the USE_x_OPCODES makefile options, we'll
 #  still try to do the right thing, including detecting Altivec support and
@@ -34,20 +36,34 @@ USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := true
 USE_IBM_COMPILER := false
-USE_VBAP := false
-SUPPORT_ALC_ENUMERATION_EXT := false
-SUPPORT_ALC_EXT_CAPTURE := false
-SUPPORT_ALC_EXT_SPEAKER_ATTRS := false
+SUPPORT_ALC_ENUMERATION_EXT := true
+SUPPORT_ALC_EXT_CAPTURE := true
 SUPPORT_AL_EXT_VORBIS := false
 SUPPORT_AL_EXT_MP3 := false
 SUPPORT_AL_EXT_VECTOR_UNIT := true
-SUPPORT_AL_EXT_BUFFER_OFFSET := false
-SUPPORT_AL_EXT_FLOAT32 := false
+SUPPORT_AL_EXT_BUFFER_OFFSET := true
+SUPPORT_AL_EXT_FLOAT32 := true
 
 # ----------------------------------------------------------------------------
-# Don't touch this stuff unless you know what you're doing.
+# Don't touch anything below this line unless you know what you're doing.
 
 LIB := openal.dylib
+
+# These are broken and/or incomplete experiments. Don't enable.
+USE_VBAP := false
+SUPPORT_ALC_EXT_SPEAKER_ATTRS := false
+
+ISGCC3 := false
+ifeq ($(strip $(USE_IBM_COMPILER)),false)
+  GCCVERCMDLINE := gcc -v 2>&1 |grep version |perl -w -p -e 's/gcc version (\d)\..*? .*/$$1/'
+  GCCMAJORVER := $(shell $(GCCVERCMDLINE))
+  ifeq ($(strip $(GCCMAJORVER)),2)
+    $(error gcc 2 is not supported. Please upgrade to gcc 3.3 or later.)
+  endif
+  ifeq ($(strip $(GCCMAJORVER)),3)
+    ISGCC3 := true
+  endif
+endif
 
 ifeq ($(strip $(USE_G5_OPCODES)),true)
   USE_G4_OPCODES := true
@@ -67,19 +83,21 @@ ifeq ($(strip $(USE_IBM_COMPILER)),true)
   endif
 else
   COMPILER := gcc
-  COMPILERFLAGS := -Wall -Werror -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
+  COMPILERFLAGS := -Wall -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
   ifeq ($(strip $(OPTIMIZE)),true)
-    OPTIMIZATIONS := -O3 -D_NDEBUG=1 -falign-loops=16 -ffast-math -fexpensive-optimizations -fno-math-errno
     ifeq ($(strip $(USE_G5_OPCODES)),true)
-      OPTIMIZATIONS += -mpowerpc-gpopt -mpowerpc64 -mcpu=970 -march=970 -DFORCE_STD_SQRT=1
+      OPTIMIZATIONS += -mcpu=G5 -mtune=G5 -mpowerpc-gpopt -mpowerpc64 -DFORCE_STD_SQRT=1
     endif
+    ifeq ($(strip $(USE_G4_OPCODES)),true)
+      ifeq ($(strip $(USE_G5_OPCODES)),false)
+        OPTIMIZATIONS += -mcpu=G4 -mtune=G4
+      endif
+      OPTIMIZATIONS += -maltivec -DFORCE_ALTIVEC=1
+    endif
+    OPTIMIZATIONS += -O3 -D_NDEBUG=1 -falign-loops=16 -ffast-math -fexpensive-optimizations -fno-math-errno
   else
     OPTIMIZATIONS := -O0
   endif
-endif
-
-ifeq ($(strip $(USE_G4_OPCODES)),true)
-  OPTIMIZATIONS += -DFORCE_ALTIVEC=1
 endif
 
 ifeq ($(strip $(USE_CCACHE)),true)
@@ -92,14 +110,14 @@ CFLAGS := -g -fno-common $(OPTIMIZATIONS) $(COMPILERFLAGS) -D_REENTRANT -c -I../
 LDFLAGS := -g -fno-common -dynamiclib -framework CoreAudio -framework CoreServices -compatibility_version 1.0.0 -install_name @executable_path/openal.dylib
 
 SRCS := alContext.c \
-		alBuffer.c \
+        alBuffer.c \
         alEnvironment.c \
         alExtension.c \
         alListener.c \
         alSoftware.c \
         alSource.c \
         alState.c \
-		ALut.c
+        ALut.c
 
 ifeq ($(strip $(USE_VBAP)),true)
     CFLAGS += -DUSE_VBAP=1

@@ -198,11 +198,11 @@ ALUTAPI ALvoid ALUTAPIENTRY alutLoadWAVFile(ALbyte *file,ALenum *format,ALvoid *
 
 	if (file)
 	{
-		    sfFile = (FILE *)fopen(file,"r");
+		    sfFile = (FILE *)fopen((const char *) file,"r");
 			if(sfFile==NULL) exit(1);
 		    numBytes = sizeof(WAVFileHdr_Struct);
 			fread(&FileHdr,1,numBytes,sfFile);
-			SwapWords(&FileHdr.Size);
+			SwapWords((unsigned int *) &FileHdr.Size);
 			FileHdr.Size=((FileHdr.Size+1)&~1)-4;
 			while ((FileHdr.Size!=0))
 			{
@@ -309,7 +309,7 @@ ALUTAPI ALvoid ALUTAPIENTRY alutLoadWAVMemory(ALbyte *memory,ALenum *format,ALvo
 		{
 		    memcpy(&FileHdr,Stream,sizeof(WAVFileHdr_Struct));
 		    Stream+=sizeof(WAVFileHdr_Struct);
-			SwapWords(&FileHdr.Size);
+			SwapWords((unsigned int *) &FileHdr.Size);
 			FileHdr.Size=((FileHdr.Size+1)&~1)-4;
 			while ((FileHdr.Size!=0)&&(memcpy(&ChunkHdr,Stream,sizeof(WAVChunkHdr_Struct))))
 			{

@@ -431,7 +431,7 @@ ALvoid __alDoVBAP(ALcontext *ctx, ALsource *src, ALvector pos, ALfloat gain);
 
 // Extensions...
 const ALubyte *__alCalculateExtensions(ALboolean isALC);
-ALboolean __alIsExtensionPresent(const ALbyte *extName, ALboolean isALC);
+ALboolean __alIsExtensionPresent(const ALubyte *extName, ALboolean isALC);
 
 
 #if SUPPORTS_AL_EXT_VECTOR_UNIT

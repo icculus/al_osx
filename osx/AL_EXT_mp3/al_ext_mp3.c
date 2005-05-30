@@ -63,7 +63,7 @@ static int doMp3Decode(MP3Opaque *o, void *outbuf, ALsizei outsize)
 
         // need to decode more from the MP3 stream...
         o->outleft = o->outpos = 0;
-        decodeMP3(&o->mp, NULL, 0, o->outbuf,
+        decodeMP3(&o->mp, NULL, 0, (char *) o->outbuf,
                   sizeof (o->outbuf), &o->outleft);
         if (o->outleft == 0)
             break;
@@ -82,7 +82,7 @@ static UInt32 __alMixMP3(struct ALcontext_struct *ctx, struct ALbuffer_struct *b
     int srcfreq = mpglib_freqs[opaque->mp.fr.sampling_frequency];
     int dstfreq = (int) ctx->device->streamFormat.mSampleRate;
     ALsizei outsize = samples * sizeof (SInt16) * 2;
-    SInt16 *outbuf = (UInt16 *) alloca(outsize);
+    SInt16 *outbuf = (SInt16 *) alloca(outsize);
     int decoded = doMp3Decode(opaque, outbuf, outsize);
 
     src->bufferReadIndex = 1;  // hack to get this to not reinitialize the buffer in alContext.c.
