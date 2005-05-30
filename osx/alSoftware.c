@@ -393,13 +393,14 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
         if (!EPSILON_EQUAL(Distance, 0.0f))
         {
             register ALfloat Panning;
+
             // this is broken, pushes everything to the right.
             //Panning = 2.0f * ( (0.5f + (0.5f * 0.707f)) *
             //                   cosf(atan2f(Position[2],Position[0])) );
 
-            // not perfect, but fast and functional.
-            Panning = 0.5f + (0.5f*Position[0]);
-            CLAMP(Panning, -1.0f, 1.0f);
+            // Jonas Echterhoff caught the problem...too many parentheses!
+            Panning = 2.0f * ( 0.5f + (0.5f * 0.707f) *
+                                cosf(atan2f(Position[2],Position[0])) );
 
     	    src->channelGain0 = CalcVolume * Panning * ctx->device->speakergains[0];
             src->channelGain1 = CalcVolume * (1.0f - Panning) * ctx->device->speakergains[1];
