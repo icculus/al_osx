@@ -148,23 +148,29 @@ ALCAPI const ALubyte*  ALCAPIENTRY alcGetString(ALCdevice *device, ALCenum param
         else if (param == ALC_DEFAULT_DEVICE_SPECIFIER)
             return(__alcDetermineDefaultDeviceName(AL_TRUE));
 
-        #if SUPPORTS_ALC_ENUMERATION_EXT
-		else if (param == ALC_DEVICE_SPECIFIER)
-            return(__alcDetermineDeviceNameList(AL_TRUE));
-        #else
 		else if (param == ALC_DEVICE_SPECIFIER)
         {
+            #if SUPPORTS_ALC_ENUMERATION_EXT
+            return(__alcDetermineDeviceNameList(AL_TRUE));
+            #else
             __alcSetError(NULL, ALC_INVALID_DEVICE);
             return(NULL);
+            #endif
         } // else if
-        #endif
 
         #if SUPPORTS_ALC_EXT_CAPTURE
         else if (param == ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER)
             return(__alcDetermineDefaultDeviceName(AL_FALSE));
 
 		else if (param == ALC_CAPTURE_DEVICE_SPECIFIER)
+        {
+            #if SUPPORTS_ALC_ENUMERATION_EXT
             return(__alcDetermineDeviceNameList(AL_FALSE));
+            #else
+            __alcSetError(NULL, ALC_INVALID_DEVICE);
+            return(NULL);
+            #endif
+        } // else if
         #endif
 
         __alcSetError((ALdevice *) device, ALC_INVALID_ENUM);
