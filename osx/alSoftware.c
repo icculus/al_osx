@@ -353,9 +353,9 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
     __alNormalize(V);
     __alVectorAssign3(N, listener->Forward);
     __alNormalize(N);
-    Matrix[0][0]=U[0]; Matrix[0][1]=V[0]; Matrix[0][2]=N[0];
-    Matrix[1][0]=U[1]; Matrix[1][1]=V[1]; Matrix[1][2]=N[1];
-    Matrix[2][0]=U[2]; Matrix[2][1]=V[2]; Matrix[2][2]=N[2];
+    Matrix[0][0]=U[0]; Matrix[0][1]=V[0]; Matrix[0][2]=-N[0];
+    Matrix[1][0]=U[1]; Matrix[1][1]=V[1]; Matrix[1][2]=-N[1];
+    Matrix[2][0]=U[2]; Matrix[2][1]=V[2]; Matrix[2][2]=-N[2];
     __alMatrixVector(Matrix,Position);
     // Convert into falloff and panning
     Distance = __alSqrt(Position[0]*Position[0]+Position[1]*Position[1]+Position[2]*Position[2]);
@@ -400,7 +400,7 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
 
             // Jonas Echterhoff caught the problem...too many parentheses!
             Panning = 2.0f * ( 0.5f + (0.5f * 0.707f) *
-                                cosf(atan2f(Position[2],Position[0])) );
+                                (ALfloat) (cos(atan2f(Position[2],Position[0]))) );
 
     	    src->channelGain0 = CalcVolume * Panning * ctx->device->speakergains[0];
             src->channelGain1 = CalcVolume * (1.0f - Panning) * ctx->device->speakergains[1];

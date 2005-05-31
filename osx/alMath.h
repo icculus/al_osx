@@ -216,9 +216,9 @@ static inline ALvoid __alMatrixVector(ALfloat matrix[3][3], ALvector v)
 {
 	ALvector result;
 
-	result[0]=matrix[0][0]*v[0]+matrix[0][1]*v[1]+matrix[0][2]*v[2];
-	result[1]=matrix[1][0]*v[0]+matrix[1][1]*v[1]+matrix[1][2]*v[2];
-	result[2]=matrix[2][0]*v[0]+matrix[2][1]*v[1]+matrix[2][2]*v[2];
+	result[0]=v[0]*matrix[0][0]+v[1]*matrix[1][0]+v[2]*matrix[2][0];
+	result[1]=v[0]*matrix[0][1]+v[1]*matrix[1][1]+v[2]*matrix[2][1];
+	result[2]=v[0]*matrix[0][2]+v[1]*matrix[1][2]+v[2]*matrix[2][2];
 
     __alVectorAssign3(v, result);
 } // __alMatrixVector
