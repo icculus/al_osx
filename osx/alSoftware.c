@@ -403,7 +403,7 @@ ALvoid __alRecalcMonoSource(ALcontext *ctx, ALsource *src)
                                 (ALfloat) (cos(atan2f(Position[2],Position[0]))) );
 
     	    src->channelGain0 = CalcVolume * Panning * ctx->device->speakergains[0];
-            src->channelGain1 = CalcVolume * (1.0f - Panning) * ctx->device->speakergains[1];
+            src->channelGain1 = CalcVolume * (2.0f - Panning) * ctx->device->speakergains[1];
         } // if
         else
         {
