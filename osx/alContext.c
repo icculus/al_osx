@@ -1080,7 +1080,7 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
                     } // if
 
                     // adjust for next buffer in queue's starting mix point.
-                    dst += (frames - srcframes) * framesize;
+                    dst = _dst + ((frames - srcframes) * framesize);
 
                     // !!! FIXME: Call rewind instead if looping...
                     if (buf->processedBuffer)
