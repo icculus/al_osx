@@ -1,3 +1,10 @@
+/*
+ * This is a test program for the ALC_EXT_capture extension. This
+ *  test code is public domain and comes with NO WARRANTY.
+ *
+ * Written by Ryan C. Gordon <icculus@icculus.org>
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +26,7 @@ static ALvoid (*alcCaptureSamples)(ALCdevice *device, ALvoid *buf,
 ALenum _AL_FORMAT_MONO_FLOAT32 = 0;
 ALenum _AL_FORMAT_STEREO_FLOAT32 = 0;
 
-#define FMT _AL_FORMAT_STEREO_FLOAT32
+#define FMT AL_FORMAT_MONO16;
 #define FMTSIZE 8
 #define FREQ 44100
 #define SAMPS (FREQ * 5)
@@ -65,6 +72,7 @@ int main(int argc, char **argv)
     GET_PROC(alcCaptureStop);
     GET_PROC(alcCaptureSamples);
 
+    // these may not exist, depending on the implementation.
     _AL_FORMAT_MONO_FLOAT32 = alGetEnumValue((ALubyte *) "AL_FORMAT_MONO_FLOAT32");
     _AL_FORMAT_STEREO_FLOAT32 = alGetEnumValue((ALubyte *) "AL_FORMAT_STEREO_FLOAT32");
     alGetError();
