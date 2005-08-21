@@ -377,6 +377,7 @@ typedef struct ALdevice_struct
     } capture;
     #endif
 
+    ALboolean isConnected;
     ALenum errorCode;
     ALlock deviceLock;
     SpeakerConfigType speakerConfig;
@@ -514,6 +515,13 @@ ALboolean __alIsExtensionPresent(const ALubyte *extName, ALboolean isALC);
   ALCAPI ALvoid ALCAPIENTRY alcCaptureSamples(ALCdevice *device, ALvoid *buf,
                                               ALsizei samps);
 #endif
+
+#if SUPPORTS_ALC_EXT_DISCONNECT
+  #ifndef ALC_CONNECTED
+    #define ALC_CONNECTED 0x313
+  #endif
+#endif
+
 
 #endif // include-once blocker.
 

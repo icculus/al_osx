@@ -114,6 +114,28 @@ ALvoid __alSetError( ALenum err )
 } // __alSetError
 
 
+static ALboolean __alcDeviceIsConnected(ALdevice *dev)
+{
+    UInt32 isAlive = 1;
+    UInt32 size = sizeof (isAlive);
+    OSStatus error = 0;
+
+    if (!dev->isConnected)  // once disconnected, we never "reconnect".
+        return AL_FALSE;
+
+    error = AudioDeviceGetProperty(dev->device, 0, dev->isInputDevice,
+                                   kAudioDevicePropertyDeviceIsAlive,
+                                   &size, &isAlive);
+
+    if (error == kAudioHardwareBadDeviceError)
+        return AL_FALSE;  // device was unplugged.
+
+    if ((error == kAudioHardwareNoError) && (!isAlive))
+        return AL_FALSE;  // device died in some other way.
+
+    return AL_TRUE;
+} // __alcDeviceIsConnected
+
 #if HAVE_PRAGMA_EXPORT
 #pragma export on
 #endif
@@ -212,6 +234,25 @@ ALCAPI ALvoid ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsizei 
                     __alUngrabDevice(dev);
                     *data = bufsize / dev->capture.formatSize;
                 } // else
+                break;
+        #endif
+
+        #if SUPPORTS_ALC_EXT_DISCONNECT
+            case ALC_CONNECTED:
+                {
+                    static int seen = 0;
+                    if (!seen)
+                    {
+                        printf("WARNING: ALC_EXT_disconnect is"
+                               " subject to change!\n");
+                        seen = 1;
+                    }
+                }
+
+                if (size < sizeof (ALint))
+                    __alcSetError((ALdevice *) dev, ALC_INVALID_VALUE);
+                else
+                    *data = __alcDeviceIsConnected(dev);
                 break;
         #endif
 
@@ -361,6 +402,10 @@ ALCAPI ALboolean ALCAPIENTRY alcIsExtensionPresent(ALCdevice *device, ALubyte *e
     if (device == NULL)
         return(__alIsExtensionPresent(extName, AL_TRUE));
 
+    // !!! FIXME: hack.
+    if (strcasecmp(extName, "ALC_EXT_disconnect") == 0)
+        return(__alIsExtensionPresent(extName, AL_TRUE));
+
     // !!! FIXME: Fill in device-specific extensions here.
     return(AL_FALSE);
 } // alcIsExtensionPresent
@@ -437,6 +482,10 @@ ALCAPI ALenum ALCAPIENTRY alcGetEnumValue(ALCdevice *device, ALubyte *enumName)
     ENUM_VALUE(ALC_CAPTURE_SAMPLES);
     ENUM_VALUE(ALC_CAPTURE_DEFAULT_DEVICE_SPECIFIER);
     ENUM_VALUE(ALC_CAPTURE_DEVICE_SPECIFIER);
+    #endif
+
+    #if SUPPORTS_ALC_EXT_DISCONNECT
+    ENUM_VALUE(ALC_CONNECTED);
     #endif
 
 	return ALC_NO_ERROR;
@@ -1143,6 +1192,9 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
     assert(dev->speakers == 0);
     assert(dev->capture.started);
 
+    if (!dev->isConnected)  // device was unplugged? Just do nothing.
+        return kAudioHardwareNoError;
+
     if (!inInputData)
         return kAudioHardwareNoError;
 
@@ -1250,10 +1302,6 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
     // !!! FIXME:  they requested a specific device, though. Need to figure out how to do that,
     // !!! FIXME:  and the full ramifications (resample all buffers? etc).
 
-    // !!! FIXME: What happens if the user has a USB audio device like the M-Audio Sonica and
-    // !!! FIXME:  unplugs it while we're using the device? What if this happens during this
-    // !!! FIXME:  audio callback?
-
     // !!! FIXME: Is the output buffer initialized, or do I need to initialize it in fast paths?
 
     ALdevice *dev = (ALdevice *) inClientData;
@@ -1261,6 +1309,12 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
     UInt8 *outDataPtr = (UInt8 *) (outOutputData->mBuffers[0].mData);
     UInt32 frames = outOutputData->mBuffers[0].mDataByteSize;
     UInt32 framesize;
+
+    if (!dev->isConnected)  // device was unplugged? Just write silence.
+    {
+        memset(outDataPtr, '\0', outOutputData->mBuffers[0].mDataByteSize);
+        return kAudioHardwareNoError;
+    } // if
 
     __alGrabDevice(dev);  // potentially long lock...
 
@@ -1363,6 +1417,8 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
     if (retval == NULL)
         return(NULL);
 
+    retval->isConnected = AL_TRUE;
+
     __alCreateLock(&retval->deviceLock);
 
     memcpy(&retval->streamFormat, &streamFormat, sizeof (streamFormat));
@@ -1379,7 +1435,7 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
     // Set up default speaker attributes.
     __alcSetSpeakerDefaults(retval);
 
-	if (AudioDeviceAddIOProc(device, ioproc, retval) != kAudioHardwareNoError)
+    if (AudioDeviceAddIOProc(device, ioproc, retval) != kAudioHardwareNoError)
     {
         AudioDeviceRemoveIOProc(device, ioproc);
         __alDestroyLock(&retval->deviceLock);

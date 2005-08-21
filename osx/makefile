@@ -31,13 +31,14 @@
 # If you don't already know what the various SUPPORT_* things do,
 #  leave them alone.
 
-OPTIMIZE := true
+OPTIMIZE := false
 USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := true
 USE_IBM_COMPILER := false
 SUPPORT_ALC_ENUMERATION_EXT := true
 SUPPORT_ALC_EXT_CAPTURE := true
+SUPPORT_ALC_EXT_DISCONNECT := true
 SUPPORT_AL_EXT_VORBIS := false
 SUPPORT_AL_EXT_MP3 := false
 SUPPORT_AL_EXT_VECTOR_UNIT := true
@@ -137,6 +138,10 @@ ifeq ($(strip $(SUPPORT_ALC_EXT_SPEAKER_ATTRS)),true)
     ifneq ($(strip $(USE_VBAP)),true)
         $(error ALC_EXT_speaker_attrs requires VBAP support.)
     endif
+endif
+
+ifeq ($(strip $(SUPPORT_ALC_EXT_DISCONNECT)),true)
+    CFLAGS += -DSUPPORTS_ALC_EXT_DISCONNECT=1
 endif
 
 ifeq ($(strip $(SUPPORT_AL_EXT_VECTOR_UNIT)),true)

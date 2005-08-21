@@ -88,6 +88,10 @@ static __alExtensionItem __alExtensionTable[] =
     { "ALC_EXT_capture", extDetectAlwaysTrue, AL_TRUE, AL_TRUE },
     #endif
 
+    #if SUPPORTS_ALC_EXT_DISCONNECT
+    { "ALC_EXT_disconnect", extDetectAlwaysTrue, AL_TRUE, AL_TRUE },
+    #endif
+
     //{ "AL_hint_MOJO", extDetectAlwaysTrue, AL_FALSE, AL_TRUE },
 };
 
