@@ -411,7 +411,7 @@ ALCAPI ALboolean ALCAPIENTRY alcIsExtensionPresent(ALCdevice *device, ALubyte *e
 } // alcIsExtensionPresent
 
 
-#define PROC_ADDRESS(x) if (strcmp(#x, (const char *)funcName) == 0) { return x; }
+#define PROC_ADDRESS(x) if (strcasecmp(#x, (const char *)funcName) == 0) { return x; }
 ALCAPI ALvoid  * ALCAPIENTRY alcGetProcAddress(ALCdevice *device, ALubyte *funcName)
 {
     PROC_ADDRESS(alcCreateContext);
@@ -448,7 +448,7 @@ ALCAPI ALvoid  * ALCAPIENTRY alcGetProcAddress(ALCdevice *device, ALubyte *funcN
 } // alcGetProcAddress
 
 
-#define ENUM_VALUE(x) if (strcmp(#x, (const char *)enumName) == 0) { return x; }
+#define ENUM_VALUE(x) if (strcasecmp(#x, (const char *)enumName) == 0) { return x; }
 ALCAPI ALenum ALCAPIENTRY alcGetEnumValue(ALCdevice *device, ALubyte *enumName)
 {
     ENUM_VALUE(ALC_INVALID);

@@ -183,7 +183,7 @@ ALboolean __alIsExtensionPresent(const ALubyte *extName, ALboolean isALC)
     {
         if (__alExtensionTable[i].isALC == isALC)
         {
-            if (strcmp((const char *) __alExtensionTable[i].extName, (const char *) extName) == 0)
+            if (strcasecmp((const char *) __alExtensionTable[i].extName, (const char *) extName) == 0)
             {
                 if (__alExtensionTable[i].available)
                     return(AL_TRUE);
@@ -206,7 +206,7 @@ ALAPI ALboolean ALAPIENTRY alIsExtensionPresent(const ALubyte *extName)
 } // alIsExtensionPresent
 
 
-#define PROC_ADDRESS(x) if (strcmp(#x, (const char *)fname) == 0) { return x; }
+#define PROC_ADDRESS(x) if (strcasecmp(#x, (const char *)fname) == 0) { return x; }
 ALAPI ALvoid * ALAPIENTRY alGetProcAddress(const ALubyte *fname)
 {
     PROC_ADDRESS(alEnable);
@@ -283,7 +283,7 @@ ALAPI ALvoid * ALAPIENTRY alGetProcAddress(const ALubyte *fname)
 } // alGetProcAddress
 
 
-#define ENUM_VALUE(x) if (strcmp(#x, (const char *)ename) == 0) { return x; }
+#define ENUM_VALUE(x) if (strcasecmp(#x, (const char *)ename) == 0) { return x; }
 ALAPI ALenum ALAPIENTRY alGetEnumValue (const ALubyte *ename)
 {
     ENUM_VALUE(AL_INVALID);
