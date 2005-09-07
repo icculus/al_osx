@@ -431,6 +431,15 @@ ALvoid __alDoVBAP(ALcontext *ctx, ALsource *src, ALvector pos, ALfloat gain);
 
 
 // Extensions...
+#define _AL_SUBJECT_TO_CHANGE(x) { \
+    static int seen = 0; \
+    if (!seen) { \
+        fprintf(stderr, "WARNING: %s is subject to change!\n\n", x); \
+        seen = 1; \
+    } \
+}
+
+
 const ALubyte *__alCalculateExtensions(ALboolean isALC);
 ALboolean __alIsExtensionPresent(const ALubyte *extName, ALboolean isALC);
 

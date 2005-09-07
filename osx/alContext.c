@@ -239,16 +239,7 @@ ALCAPI ALvoid ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsizei 
 
         #if SUPPORTS_ALC_EXT_DISCONNECT
             case ALC_CONNECTED:
-                {
-                    static int seen = 0;
-                    if (!seen)
-                    {
-                        printf("WARNING: ALC_EXT_disconnect is"
-                               " subject to change!\n");
-                        seen = 1;
-                    }
-                }
-
+                _AL_SUBJECT_TO_CHANGE("ALC_EXT_disconnect");
                 if (size < sizeof (ALint))
                     __alcSetError((ALdevice *) dev, ALC_INVALID_VALUE);
                 else
@@ -630,7 +621,7 @@ ALCAPI ALCdevice* ALCAPIENTRY alcCaptureOpenDevice(const ALubyte *deviceName,
     retval->capture.resampled = NULL;
     retval->capture.converted = NULL;
 
-    fprintf(stderr, "WARNING: ALC_EXT_capture specification is subject to change!\n\n");
+    _AL_SUBJECT_TO_CHANGE("ALC_EXT_capture");
     return((ALCdevice *) retval);
 } // alcCaptureOpenDevice
 
