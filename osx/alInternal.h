@@ -70,6 +70,7 @@ typedef pthread_mutex_t ALlock;
 #define AL_MAXBUFFERQUEUE  128
 #define AL_MAXSOURCES      1024 * 5
 #define AL_MAXCONTEXTS     4
+#define AL_MAXDEVICES      16
 #define AL_MAXSPEAKERS     8
 
 // zero if altivec-aligned.
@@ -363,8 +364,9 @@ typedef struct ALdevice_struct
     AudioStreamBasicDescription	streamFormat;
     #endif
 
-    #if SUPPORTS_ALC_EXT_CAPTURE
     ALboolean isInputDevice;
+
+    #if SUPPORTS_ALC_EXT_CAPTURE
     struct   // put this in a struct for the sake of the namespace...
     {
         ALboolean started;
@@ -377,7 +379,10 @@ typedef struct ALdevice_struct
     } capture;
     #endif
 
+    #if SUPPORTS_ALC_EXT_DISCONNECT
     ALboolean isConnected;
+    #endif
+
     ALenum errorCode;
     ALlock deviceLock;
     SpeakerConfigType speakerConfig;

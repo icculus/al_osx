@@ -47,12 +47,20 @@ static ALvoid __alcStopCaptureIO(ALdevice *device);
 static ALubyte *__alcDetermineDeviceNameList(ALboolean isOutput);
 #endif
 
+static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
+                              UInt32 frames, UInt32 framesize,
+                              ALboolean justStopPlaying);
+
 
 // minor pthread wrapper...
 #define __alCreateLock(lockptr) pthread_mutex_init(lockptr, NULL)
 #define __alDestroyLock(lockptr) pthread_mutex_destroy(lockptr)
 #define __alGrabLock(lockptr) pthread_mutex_lock(lockptr)
 #define __alUngrabLock(lockptr) pthread_mutex_unlock(lockptr)
+
+
+static ALuint __alcDevCount = 0;
+static ALdevice *__alcDevices[16];
 
 
 static inline ALvoid __alGrabContext(ALcontext *ctx)
@@ -113,28 +121,6 @@ ALvoid __alSetError( ALenum err )
         __alErrorCode = err;
 } // __alSetError
 
-
-static ALboolean __alcDeviceIsConnected(ALdevice *dev)
-{
-    UInt32 isAlive = 1;
-    UInt32 size = sizeof (isAlive);
-    OSStatus error = 0;
-
-    if (!dev->isConnected)  // once disconnected, we never "reconnect".
-        return AL_FALSE;
-
-    error = AudioDeviceGetProperty(dev->device, 0, dev->isInputDevice,
-                                   kAudioDevicePropertyDeviceIsAlive,
-                                   &size, &isAlive);
-
-    if (error == kAudioHardwareBadDeviceError)
-        return AL_FALSE;  // device was unplugged.
-
-    if ((error == kAudioHardwareNoError) && (!isAlive))
-        return AL_FALSE;  // device died in some other way.
-
-    return AL_TRUE;
-} // __alcDeviceIsConnected
 
 #if HAVE_PRAGMA_EXPORT
 #pragma export on
@@ -243,7 +229,7 @@ ALCAPI ALvoid ALCAPIENTRY alcGetIntegerv(ALCdevice *device,ALenum param,ALsizei 
                 if (size < sizeof (ALint))
                     __alcSetError((ALdevice *) dev, ALC_INVALID_VALUE);
                 else
-                    *data = __alcDeviceIsConnected(dev);
+                    *data = dev->isConnected;
                 break;
         #endif
 
@@ -776,6 +762,67 @@ ALboolean __alDetectVectorUnit(ALvoid)
 } // __alDetectVectorUnit
 
 
+#if SUPPORTS_ALC_EXT_DISCONNECT
+// !!! FIXME: this might be dumb. Checking the updated list of device IDs
+// !!! FIXME:  might be smarter.
+static ALboolean __alcDeviceIsConnected(ALdevice *dev)
+{
+    UInt32 isAlive = 1;
+    UInt32 size = sizeof (isAlive);
+    OSStatus error = 0;
+
+    error = AudioDeviceGetProperty(dev->device, 0, dev->isInputDevice,
+                                   kAudioDevicePropertyDeviceIsAlive,
+                                   &size, &isAlive);
+
+    if (error == kAudioHardwareBadDeviceError)
+        return AL_FALSE;  // device was unplugged.
+
+    if ((error == kAudioHardwareNoError) && (!isAlive))
+        return AL_FALSE;  // device died in some other way.
+
+    return AL_TRUE;
+} // __alcDeviceIsConnected
+
+
+static void __alcHandleDisconnect(ALdevice *dev)
+{
+    ALcontext **ctxs;
+    __alGrabDevice(dev);
+    
+    dev->isConnected = AL_FALSE;
+
+    if (!dev->isInputDevice)
+    {
+        // flush any playing sources.
+        for (ctxs = dev->createdContexts; *ctxs != NULL; ctxs++)
+            __alcMixContext(*ctxs, NULL, 0, 0, AL_TRUE);
+    } // if
+
+    __alUngrabDevice(dev);
+} // __alcHandleDisconnect
+
+
+static OSStatus __alcDeviceDisconnectNotify(AudioHardwarePropertyID inPropertyID,
+                                            void *inClientData)
+{
+    if (inPropertyID == kAudioHardwarePropertyDevices)
+    {
+        int i;
+        // !!! FIXME: Grab some sort of universal lock here...
+        for (i = 0; i < __alcDevCount; i++)
+        {
+            ALdevice *dev = __alcDevices[i];
+            if ((dev->isConnected) && (!__alcDeviceIsConnected(dev)))
+                __alcHandleDisconnect(dev);
+        } // for
+    } // if
+
+    return(0);  // docs say always return zero.
+} // __alcDeviceDisconnectNotify
+#endif
+
+
 static ALboolean __alcDoFirstInit(ALvoid)
 {
     static ALboolean __alcAlreadyDidFirstInit = AL_FALSE;
@@ -791,6 +838,11 @@ static ALboolean __alcDoFirstInit(ALvoid)
 
         __alcAlreadyDidFirstInit = AL_TRUE;
         __alCalculateExtensions(AL_TRUE);
+
+        #if SUPPORTS_ALC_EXT_DISCONNECT
+        AudioHardwareAddPropertyListener(kAudioHardwarePropertyDevices,
+                                         __alcDeviceDisconnectNotify, NULL);
+        #endif
     } // if
 
     return(AL_TRUE);
@@ -1040,7 +1092,8 @@ static ALboolean __alcDetermineDeviceID(const ALubyte *deviceName,
 
 
 static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
-                                UInt32 frames, UInt32 framesize)
+                              UInt32 frames, UInt32 framesize,
+                              ALboolean justStopPlaying)
 {
     register ALsource *src;
     register ALsource **playingSources;
@@ -1065,7 +1118,10 @@ static ALvoid __alcMixContext(ALcontext *ctx, UInt8 *_dst,
         if (!src->inUse)  // someone deleted a playing source!
             src->state = AL_STOPPED;
 
-        if (src->state == AL_PLAYING)
+        else if ((src->state == AL_PLAYING) && (justStopPlaying))
+            src->state = AL_STOPPED;  // just flush the buffer queue.
+
+        else if (src->state == AL_PLAYING)
         {
             register int stallcount = 0;
             while (srcframes)
@@ -1183,9 +1239,6 @@ static OSStatus __alcCaptureDevice(AudioDeviceID  inDevice, const AudioTimeStamp
     assert(dev->speakers == 0);
     assert(dev->capture.started);
 
-    if (!dev->isConnected)  // device was unplugged? Just do nothing.
-        return kAudioHardwareNoError;
-
     if (!inInputData)
         return kAudioHardwareNoError;
 
@@ -1301,12 +1354,6 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
     UInt32 frames = outOutputData->mBuffers[0].mDataByteSize;
     UInt32 framesize;
 
-    if (!dev->isConnected)  // device was unplugged? Just write silence.
-    {
-        memset(outDataPtr, '\0', outOutputData->mBuffers[0].mDataByteSize);
-        return kAudioHardwareNoError;
-    } // if
-
     __alGrabDevice(dev);  // potentially long lock...
 
     framesize = (sizeof (Float32) * dev->streamFormat.mChannelsPerFrame);
@@ -1321,7 +1368,7 @@ static OSStatus __alcMixDevice(AudioDeviceID  inDevice, const AudioTimeStamp*  i
         //  swallow the cost of a mutex lock and function call to find out
         //  we don't really have to mix this context.
         if ((!ctx->suspended) && (ctx->playingSources[0] != NULL))
-            __alcMixContext(ctx, outDataPtr, frames, framesize);
+            __alcMixContext(ctx, outDataPtr, frames, framesize, AL_FALSE);
     } // for
 
     __alUngrabDevice(dev);
@@ -1342,6 +1389,9 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
     AudioStreamBasicDescription	streamFormat;
     ALdevice *retval = NULL;
     AudioStreamBasicDescription	*streamFormats;
+
+    if (__alcDevCount >= AL_MAXDEVICES)
+        return(NULL);
 
     #if SUPPORTS_ALC_EXT_CAPTURE
     if (isInput)
@@ -1408,7 +1458,9 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
     if (retval == NULL)
         return(NULL);
 
+    #if SUPPORTS_ALC_EXT_DISCONNECT
     retval->isConnected = AL_TRUE;
+    #endif
 
     __alCreateLock(&retval->deviceLock);
 
@@ -1433,6 +1485,9 @@ static ALCdevice* __alcOpenDeviceInternal(const ALubyte *deviceName,
         free(retval);
         return(NULL);
     } // if
+
+    // !!! FIXME: Grab some sort of universal lock here...
+    __alcDevices[__alcDevCount++] = retval;
 
     if (isOutput)
         AudioDeviceStart(device, ioproc);
@@ -1462,6 +1517,7 @@ ALCAPI ALvoid ALCAPIENTRY alcCloseDevice( ALCdevice *device )
         __alcSetError(dev, ALC_INVALID);
     else
     {
+        int i;
         AudioDeviceIOProc ioproc = __alcMixDevice;
         #if SUPPORTS_ALC_EXT_CAPTURE
         if (dev->isInputDevice)
@@ -1475,6 +1531,19 @@ ALCAPI ALvoid ALCAPIENTRY alcCloseDevice( ALCdevice *device )
         // !!! FIXME:  start a new run, but it will not be running at this point.
 
         __alDestroyLock(&dev->deviceLock);
+
+        // !!! FIXME: Grab some sort of universal lock here...
+        for (i = 0; i < __alcDevCount; i++)
+        {
+            if (__alcDevices[i] == dev)
+            {
+                for (__alcDevCount--; i < __alcDevCount; i++)
+                    __alcDevices[i] = __alcDevices[i+1];
+                __alcDevices[i] = NULL;
+                break;
+            } // if
+        } // for
+
         free(dev);
     } // else
 } // alcCloseDevice

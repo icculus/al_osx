@@ -680,6 +680,11 @@ static inline ALvoid __alSourcePlay_locked(ALcontext *ctx, ALsource *src)
 {
     if (src != NULL)
     {
+        // !!! FIXME: if ALC_EXT_disconnect is supported, and the device
+        // !!! FIXME:  was disconnected, we need to just push all queued
+        // !!! FIXME:  buffers to PROCESSED and push this source to STOPPED.
+        // !!! FIXME:  (assuming the spec settles on that....)
+
         if (src->state != AL_PAUSED)
         {
             ALsource **srcs;
