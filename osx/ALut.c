@@ -140,6 +140,7 @@ ALUTAPI ALvoid ALUTAPIENTRY alutExit(ALvoid)
 
 void SwapWords(unsigned int *puint)
 {
+#if __POWERPC__
     unsigned int tempint;
 	char *pChar1, *pChar2;
 	
@@ -151,10 +152,12 @@ void SwapWords(unsigned int *puint)
 	pChar1[1]=pChar2[2];
 	pChar1[2]=pChar2[1];
 	pChar1[3]=pChar2[0];
+#endif
 }
 
 void SwapBytes(unsigned short *pshort)
 {
+#if __POWERPC__
     unsigned short tempshort;
     char *pChar1, *pChar2;
     
@@ -164,6 +167,7 @@ void SwapBytes(unsigned short *pshort)
     
     pChar1[0]=pChar2[1];
     pChar1[1]=pChar2[0];
+#endif
 }
 
 void convert_c2pstr(char *string)

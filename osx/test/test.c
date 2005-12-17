@@ -8,8 +8,8 @@
 
 
 #define LOAD_VORBIS 0
-#define LOAD_MP3 1
-#define LOAD_WAV 0
+#define LOAD_MP3 0
+#define LOAD_WAV 1
 #define TEST_BUFFER_DATA 0
 #define DUMP_WAV 0
 #define TEST_AL_EXT_BUFFER_OFFSET 0
