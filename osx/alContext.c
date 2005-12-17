@@ -380,7 +380,7 @@ ALCAPI ALboolean ALCAPIENTRY alcIsExtensionPresent(ALCdevice *device, ALubyte *e
         return(__alIsExtensionPresent(extName, AL_TRUE));
 
     // !!! FIXME: hack.
-    if (strcasecmp(extName, "ALC_EXT_disconnect") == 0)
+    if (strcasecmp((const char *) extName, "ALC_EXT_disconnect") == 0)
         return(__alIsExtensionPresent(extName, AL_TRUE));
 
     // !!! FIXME: Fill in device-specific extensions here.
@@ -748,6 +748,7 @@ ALboolean __alDetectVectorUnit(ALvoid)
     static ALboolean __alcVectorUnitDetected = AL_FALSE;
     if (__alcAlreadyDidVectorUnitDetection == AL_FALSE)
     {
+        #if __POWERPC__
         OSErr err;
         long cpufeature = 0;
         err = Gestalt(gestaltPowerPCProcessorFeatures, &cpufeature);
@@ -756,6 +757,11 @@ ALboolean __alDetectVectorUnit(ALvoid)
             if ((1 << gestaltPowerPCHasVectorInstructions) & cpufeature)
                 __alcVectorUnitDetected = AL_TRUE;
         } // if
+        #else
+        // !!! FIXME: sse detection?
+        #endif
+
+        __alcAlreadyDidVectorUnitDetection = AL_TRUE;
     } // if
 
     return(__alcVectorUnitDetected);

@@ -668,8 +668,10 @@ UInt32 __alMixStereo16(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_d
 // !!! FIXME: Altivec mixers only work in stereo configurations.
 UInt32 __alMixMono8_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
-    register UInt32 buflen = buf->allocatedSpace - src->bufferReadIndex;
     register ALsizei overflow = 0;
+
+    #if __POWERPC__
+    register UInt32 buflen = buf->allocatedSpace - src->bufferReadIndex;
     register SInt8 *in = ((SInt8 *) buf->mixData) + src->bufferReadIndex;
     register Float32 *dst = _dst;
     register Float32 *max;
@@ -857,16 +859,20 @@ UInt32 __alMixMono8_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float3
     } // if
 
     src->bufferReadIndex += frames;
+    #endif // __POWERPC__
+
     return(overflow);
 } // __alMixMono8_altivec
 
 
 UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
+    register ALsizei overflow = 0;
+
+    #if __POWERPC__
     //register UInt32 ctrl_in = DST_BLOCK_CTRL(1, 2, 16);
     //register UInt32 ctrl_out = DST_BLOCK_CTRL(1, 8, 16);
     register UInt32 buflen = (buf->allocatedSpace >> 1) - src->bufferReadIndex;
-    register ALsizei overflow = 0;
     register SInt16 *in = ((SInt16 *) buf->mixData) + src->bufferReadIndex;
     register Float32 *dst = _dst;
     register Float32 *max;
@@ -1032,14 +1038,18 @@ UInt32 __alMixMono16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float
     } // if
 
     src->bufferReadIndex += frames;
+    #endif // __POWERPC__
+
     return(overflow);
 } // __alMixMono16_altivec
 
 
 UInt32 __alMixStereo16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
-    register UInt32 buflen = (buf->allocatedSpace >> 2) - src->bufferReadIndex;
     register ALsizei overflow = 0;
+
+    #if __POWERPC__
+    register UInt32 buflen = (buf->allocatedSpace >> 2) - src->bufferReadIndex;
     register SInt16 *in = ((SInt16 *) buf->mixData) + (src->bufferReadIndex << 1);
     register Float32 *dst = _dst;
     register Float32 *max;
@@ -1136,6 +1146,8 @@ UInt32 __alMixStereo16_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Flo
     } // if
 
     src->bufferReadIndex += frames;
+    #endif // __POWERPC__
+
     return(overflow);
 } // __alMixStereo16_altivec
 
@@ -1243,8 +1255,10 @@ UInt32 __alMixStereoFloat32(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float3
 
 UInt32 __alMixMonoFloat32_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
-    register UInt32 buflen = (buf->allocatedSpace >> 2) - src->bufferReadIndex;
     register ALsizei overflow = 0;
+
+    #if __POWERPC__
+    register UInt32 buflen = (buf->allocatedSpace >> 2) - src->bufferReadIndex;
     register Float32 *in = ((Float32 *) buf->mixData) + src->bufferReadIndex;
     register Float32 *dst = _dst;
     register Float32 *max;
@@ -1364,14 +1378,18 @@ UInt32 __alMixMonoFloat32_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, 
     } // if
 
     src->bufferReadIndex += frames;
+    #endif  // __POWERPC__
+
     return(overflow);
 } // __alMixMonoFloat32_altivec
 
 
 UInt32 __alMixStereoFloat32_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src, Float32 *_dst, UInt32 frames)
 {
-    register UInt32 buflen = (buf->allocatedSpace >> 3) - src->bufferReadIndex;
     register ALsizei overflow = 0;
+
+    #if __POWERPC__
+    register UInt32 buflen = (buf->allocatedSpace >> 3) - src->bufferReadIndex;
     register Float32 *in = ((Float32 *) buf->mixData) + (src->bufferReadIndex << 1);
     register Float32 *dst = _dst;
     register Float32 *max;
@@ -1447,9 +1465,10 @@ UInt32 __alMixStereoFloat32_altivec(ALcontext *ctx, ALbuffer *buf, ALsource *src
     } // if
 
     src->bufferReadIndex += frames;
+    #endif  // __POWERPC__
+
     return(overflow);
 } // __alMixStereoFloat32_altivec
-
 #endif
 
 // end of alSoftware.c ...

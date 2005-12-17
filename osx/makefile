@@ -31,18 +31,18 @@
 # If you don't already know what the various SUPPORT_* things do,
 #  leave them alone.
 
-OPTIMIZE := false
+OPTIMIZE := true
 USE_G4_OPCODES := false
 USE_G5_OPCODES := false
-USE_CCACHE := true
+USE_CCACHE := false
 USE_IBM_COMPILER := false
 SUPPORT_ALC_ENUMERATION_EXT := true
-SUPPORT_ALC_EXT_CAPTURE := true
-SUPPORT_ALC_EXT_DISCONNECT := true
+SUPPORT_ALC_EXT_CAPTURE := false
+SUPPORT_ALC_EXT_DISCONNECT := false
 SUPPORT_AL_EXT_VORBIS := false
 SUPPORT_AL_EXT_MP3 := false
-SUPPORT_AL_EXT_VECTOR_UNIT := true
-SUPPORT_AL_EXT_BUFFER_OFFSET := true
+SUPPORT_AL_EXT_VECTOR_UNIT := false
+SUPPORT_AL_EXT_BUFFER_OFFSET := false
 SUPPORT_AL_EXT_FLOAT32 := true
 
 # ----------------------------------------------------------------------------
@@ -84,7 +84,7 @@ ifeq ($(strip $(USE_IBM_COMPILER)),true)
   endif
 else
   COMPILER := gcc
-  COMPILERFLAGS := -Wall -faltivec -fasm -force_cpusubtype_ALL -fsigned-chars -fPIC
+  COMPILERFLAGS := -Wall -faltivec -fasm -force_cpusubtype_ALL -fPIC
   ifeq ($(strip $(OPTIMIZE)),true)
     ifeq ($(strip $(USE_G5_OPCODES)),true)
       OPTIMIZATIONS += -mcpu=G5 -mtune=G5 -mpowerpc-gpopt -mpowerpc64 -DFORCE_STD_SQRT=1

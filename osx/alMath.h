@@ -76,7 +76,7 @@ static inline ALvoid __alSinCos(ALfloat f, ALfloat *s, ALfloat *c)
 
 // Square root stuff.
 #if (!defined FORCE_STD_SQRT)
-#  if (!MACOSX)
+#  if ((!MACOSX) || (!__POWERPC__))
 #    define FORCE_STD_SQRT 1
 #  endif
 #endif
