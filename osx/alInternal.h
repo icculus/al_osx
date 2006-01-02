@@ -466,7 +466,7 @@ ALboolean __alIsExtensionPresent(const ALubyte *extName, ALboolean isALC);
 
 #if SUPPORTS_AL_EXT_MP3
   #ifndef AL_FORMAT_MP3_EXT
-    #define AL_FORMAT_MP3_EXT 0x10004
+    #define AL_FORMAT_MP3_EXT 0x10020
   #endif
 
   ALvoid __alBufferDataFromMP3(ALbuffer *buf);
