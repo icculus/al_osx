@@ -17,10 +17,18 @@
  *  Boston, MA  02111-1307, USA.
  * Or go to http://www.gnu.org/copyleft/lgpl.html
  */
- 
+
 #include "alInternal.h"
 
-// !!! FIXME: This needs updating.
+// ALUT is being seperated out now in the official openal implementation.
+//  You should use their external libalut with this AL, too.
+//  But if you want this old, crusty support, perhaps for binary
+//  compatibility, toggle SUPPORTS_ALUT to "true" in the Makefile.
+#if !SUPPORTS_ALUT
+int NO_ALUT_SUPPORT_IN_THIS_OPENAL_BUILD = 1;
+#else
+
+// !!! FIXME: This all needs updating.
 
 void convert_c2pstr(char *string);
 void SwapWords(unsigned int *puint);
@@ -399,6 +407,8 @@ ALUTAPI ALvoid ALUTAPIENTRY alutUnloadWAV(ALenum format,ALvoid *data,ALsizei siz
 #if HAVE_PRAGMA_EXPORT
 #pragma export off
 #endif
+
+#endif  // SUPPORTS_ALUT
 
 // end of ALut.c ...
 

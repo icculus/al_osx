@@ -273,11 +273,14 @@ ALAPI ALvoid * ALAPIENTRY alGetProcAddress(const ALubyte *fname)
     PROC_ADDRESS(alDopplerFactor);
     PROC_ADDRESS(alDopplerVelocity);
     PROC_ADDRESS(alDistanceModel);
+
+    #if SUPPORTS_ALUT
     PROC_ADDRESS(alutInit);
     PROC_ADDRESS(alutExit);
     PROC_ADDRESS(alutLoadWAVFile);
     PROC_ADDRESS(alutLoadWAVMemory);
     PROC_ADDRESS(alutUnloadWAV);
+    #endif
 
 	return NULL;
 } // alGetProcAddress

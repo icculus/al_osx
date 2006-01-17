@@ -36,6 +36,7 @@ USE_G4_OPCODES := false
 USE_G5_OPCODES := false
 USE_CCACHE := false
 USE_IBM_COMPILER := false
+SUPPORT_ALUT := false
 SUPPORT_ALC_ENUMERATION_EXT := true
 SUPPORT_ALC_EXT_CAPTURE := false
 SUPPORT_ALC_EXT_DISCONNECT := false
@@ -123,6 +124,10 @@ SRCS := alContext.c \
 ifeq ($(strip $(USE_VBAP)),true)
     CFLAGS += -DUSE_VBAP=1
     SRCS += alVBAP.c
+endif
+
+ifeq ($(strip $(SUPPORT_ALUT)),true)
+    CFLAGS += -DSUPPORTS_ALUT=1
 endif
 
 ifeq ($(strip $(SUPPORT_ALC_ENUMERATION_EXT)),true)

@@ -39,7 +39,10 @@
 #define ALUT_CALLBACK
 #include "al.h"
 #include "alc.h"
+
+#if SUPPORTS_ALUT
 #include "alut.h"
+#endif
 
 // CoreAudio and other Apple headers...
 #if MACOSX
