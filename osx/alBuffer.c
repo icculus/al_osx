@@ -1385,7 +1385,8 @@ static ALboolean __alDoBufferConvert(ALcontext *ctx, ALbuffer *buffer,
 
 		default:
             //printf("tried to buffer %d data.\n", format);
-			__alSetError(AL_ILLEGAL_ENUM);
+            __alSetError(AL_ILLEGAL_ENUM);
+            return(AL_FALSE);
 	} // switch
 
     // Fast path if no sample rate conversion needed...
