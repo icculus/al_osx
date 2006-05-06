@@ -32,5 +32,5 @@ need to:
     _vorbis_has_vector_unit() appropriately. By default, this should be
     #defined to zero and thus the vectorized stuff should compile out.
 
---ryan. (icculus@clutteredmind.org)
+--ryan. (icculus@icculus.org)
 
