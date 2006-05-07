@@ -101,6 +101,7 @@ int vorbis_block_init(vorbis_dsp_state *v, vorbis_block *vb){
 }
 
 void *_vorbis_block_alloc(vorbis_block *vb,long bytes){
+  bytes += 16; /* overallocate for vectorization routines. */
   bytes=(bytes+(WORD_ALIGN-1)) & ~(WORD_ALIGN-1);
   if(bytes+vb->localtop>vb->localalloc){
     /* can't just _ogg_realloc... there are outstanding pointers */
