@@ -10,17 +10,17 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "AL/al.h"
-#include "AL/alc.h"
+#include "al.h"
+#include "alc.h"
 
 
-static ALCdevice* (*alcCaptureOpenDevice)(const ALubyte *deviceName,
+static ALCdevice* (*palcCaptureOpenDevice)(const ALubyte *deviceName,
                                      ALuint freq, ALenum fmt,
                                      ALsizei bufsize);
-static ALvoid (*alcCaptureCloseDevice)(ALCdevice *device);
-static ALvoid (*alcCaptureStart)(ALCdevice *device);
-static ALvoid (*alcCaptureStop)(ALCdevice *device);
-static ALvoid (*alcCaptureSamples)(ALCdevice *device, ALvoid *buf,
+static ALvoid (*palcCaptureCloseDevice)(ALCdevice *device);
+static ALvoid (*palcCaptureStart)(ALCdevice *device);
+static ALvoid (*palcCaptureStop)(ALCdevice *device);
+static ALvoid (*palcCaptureSamples)(ALCdevice *device, ALvoid *buf,
                                    ALsizei samps);
 
 ALenum _AL_FORMAT_MONO_FLOAT32 = 0;
@@ -38,7 +38,7 @@ ALvoid *recordSomething(void)
     ALint samples = 0;
     ALenum capture_samples = alcGetEnumValue(in, "ALC_CAPTURE_SAMPLES");
     printf("recording...\n");
-    alcCaptureStart(in);
+    palcCaptureStart(in);
 
     while (samples < SAMPS)
     {
@@ -46,8 +46,8 @@ ALvoid *recordSomething(void)
         usleep(10000);
     } // while
 
-    alcCaptureSamples(in, buf, SAMPS);
-    alcCaptureStop(in);
+    palcCaptureSamples(in, buf, SAMPS);
+    palcCaptureStop(in);
     return(buf);  // buf has SAMPS samples of FMT audio at FREQ.
 } // recordSomething
 
@@ -60,17 +60,20 @@ int main(int argc, char **argv)
     ALint state = AL_PLAYING;
 
     if (!alcIsExtensionPresent(NULL, "ALC_EXT_capture"))
-    {
-        fprintf(stderr, "No ALC_EXT_capture support.\n");
-        return(42);
-    } // if
+        fprintf(stderr, "No ALC_EXT_capture support reported.\n");
 
-    #define GET_PROC(x) x = alcGetProcAddress(NULL, (ALubyte *) #x)
+    #define GET_PROC(x) p##x = alcGetProcAddress(NULL, (ALubyte *) #x)
     GET_PROC(alcCaptureOpenDevice);
     GET_PROC(alcCaptureCloseDevice);
     GET_PROC(alcCaptureStart);
     GET_PROC(alcCaptureStop);
     GET_PROC(alcCaptureSamples);
+
+    if (palcCaptureOpenDevice == NULL)
+    {
+        fprintf(stderr, "entry points missing, extension really doesn't exist.\n");
+        return 42;   // it really doesn't exist, bail.
+    } // if
 
     // these may not exist, depending on the implementation.
     _AL_FORMAT_MONO_FLOAT32 = alGetEnumValue((ALubyte *) "AL_FORMAT_MONO_FLOAT32");
@@ -98,7 +101,7 @@ int main(int argc, char **argv)
     } // else
 
     alutInit(&argc, argv);
-    in = alcCaptureOpenDevice(NULL, FREQ, FMT, SAMPS);
+    in = palcCaptureOpenDevice(NULL, FREQ, FMT, SAMPS);
     if (in == NULL)
     {
         fprintf(stderr, "Couldn't open capture device.\n");
@@ -108,7 +111,7 @@ int main(int argc, char **argv)
 
     recordSomething();
 
-    alcCaptureCloseDevice(in);
+    palcCaptureCloseDevice(in);
 
     alGenSources(1, &sid);
     alGenBuffers(1, &bid);

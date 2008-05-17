@@ -3,8 +3,8 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include "AL/al.h"
-#include "AL/alc.h"
+#include "al.h"
+#include "alc.h"
 
 
 #define LOAD_VORBIS 0
