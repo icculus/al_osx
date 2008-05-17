@@ -26,7 +26,7 @@ static ALvoid (*alcCaptureSamples)(ALCdevice *device, ALvoid *buf,
 ALenum _AL_FORMAT_MONO_FLOAT32 = 0;
 ALenum _AL_FORMAT_STEREO_FLOAT32 = 0;
 
-#define FMT AL_FORMAT_MONO16;
+#define FMT AL_FORMAT_MONO16
 #define FMTSIZE 8
 #define FREQ 44100
 #define SAMPS (FREQ * 5)
