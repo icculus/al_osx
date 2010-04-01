@@ -607,7 +607,6 @@ ALCAPI ALCdevice* ALCAPIENTRY alcCaptureOpenDevice(const ALubyte *deviceName,
     retval->capture.resampled = NULL;
     retval->capture.converted = NULL;
 
-    _AL_SUBJECT_TO_CHANGE("ALC_EXT_capture");
     return((ALCdevice *) retval);
 } // alcCaptureOpenDevice
 
