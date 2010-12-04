@@ -38,7 +38,7 @@ USE_CCACHE := false
 USE_IBM_COMPILER := false
 SUPPORT_ALUT := false
 SUPPORT_ALC_ENUMERATION_EXT := true
-SUPPORT_ALC_EXT_CAPTURE := false
+SUPPORT_ALC_EXT_CAPTURE := true
 SUPPORT_ALC_EXT_DISCONNECT := false
 SUPPORT_AL_EXT_VORBIS := false
 SUPPORT_AL_EXT_MP3 := false
@@ -84,7 +84,7 @@ ifeq ($(strip $(USE_IBM_COMPILER)),true)
     OPTIMIZATIONS := -O0
   endif
 else
-  COMPILER := gcc
+  COMPILER := gcc-4.0
   COMPILERFLAGS := -Wall -faltivec -fasm -force_cpusubtype_ALL -fPIC
   ifeq ($(strip $(OPTIMIZE)),true)
     ifeq ($(strip $(USE_G5_OPCODES)),true)
@@ -108,8 +108,34 @@ else
   CC := $(COMPILER)
 endif
 
-CFLAGS := -g -fno-common $(OPTIMIZATIONS) $(COMPILERFLAGS) -D_REENTRANT -c -I../include/AL -I. -DMACOSX=1
-LDFLAGS := -g -fno-common -dynamiclib -framework CoreAudio -framework CoreServices -compatibility_version 1.0.0 -install_name @executable_path/openal.dylib
+CFLAGS := -arch i386 -g -fno-common $(OPTIMIZATIONS) $(COMPILERFLAGS) -D_REENTRANT -c -I../include/AL -I. -DMACOSX=1
+LDFLAGS := -arch i386 -g -fno-common -dynamiclib -framework CoreAudio -framework CoreServices -compatibility_version 1.0.0 -install_name @executable_path/openal.dylib
+
+XCODE_DIR=/Developer
+MACOSX_SDK_DIR=MacOSX10.4u.sdk
+MACOSX_GCC_DIR=i686-apple-darwin10/4.0.1
+MACOSX_GCC_LIB_DIR=$(MACOSX_GCC_DIR)
+MACOSX_CXX_DIR=i686-apple-darwin8
+
+MACOSX_ARCH=i386
+MACOSX_MIN_VERSION=10.4
+MACOSX_MIN_VERSION_REQUIRED=1040
+
+CC=gcc-4.0
+CXX=g++-4.0
+
+CFLAGS += -mmacosx-version-min=$(MACOSX_MIN_VERSION)
+CFLAGS += -DMAC_OS_X_VERSION_MIN_REQUIRED=$(MACOSX_MIN_VERSION_REQUIRED)
+CFLAGS += -nostdinc
+CFLAGS += -F$(XCODE_DIR)/SDKs/$(MACOSX_SDK_DIR)/System/Library/Frameworks
+CFLAGS += -I$(XCODE_DIR)/SDKs/$(MACOSX_SDK_DIR)/usr/lib/gcc/$(MACOSX_GCC_DIR)/include
+CFLAGS += -isystem $(XCODE_DIR)/SDKs/$(MACOSX_SDK_DIR)/usr/include
+
+LDFLAGS += -mmacosx-version-min=$(MACOSX_MIN_VERSION)
+LDFLAGS += -F$(XCODE_DIR)/SDKs/$(MACOSX_SDK_DIR)/System/Library/Frameworks
+LDFLAGS += -L$(XCODE_DIR)/SDKs/$(MACOSX_SDK_DIR)/usr/lib/gcc/$(MACOSX_GCC_LIB_DIR)
+LDFLAGS += -Wl,-syslibroot,$(XCODE_DIR)/SDKs/$(MACOSX_SDK_DIR)
+
 
 SRCS := alContext.c \
         alBuffer.c \
