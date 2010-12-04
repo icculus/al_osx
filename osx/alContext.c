@@ -644,8 +644,8 @@ ALCAPI ALvoid ALCAPIENTRY alcCaptureStop(ALCdevice *device)
         __alcSetError(dev, ALC_INVALID_DEVICE);
     else if (dev->capture.started)
     {
-        dev->capture.started = AL_FALSE;
         __alcStopCaptureIO(dev);
+        dev->capture.started = AL_FALSE;
     } // else if
 } // alcCaptureStart
 
