@@ -384,6 +384,9 @@ ALAPI ALvoid ALAPIENTRY alSourcefv (ALuint source, ALenum pname, ALfloat *values
                 } // if
                 break;
 
+            case AL_DIRECTION:
+                break;  // !!! FIXME: not supported right now.
+
             default:
                 __alSetError(AL_INVALID_ENUM);
                 break;
