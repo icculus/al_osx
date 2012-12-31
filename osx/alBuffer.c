@@ -63,13 +63,15 @@ static ALcontext *__alGrabContextAndGetBuffer(ALuint bufid, ALbuffer **bufout)
 
     bufid--;  // account for Buffer Zero.
 
-	if (bufid > AL_MAXBUFFERS)
+    ctx = __alGrabCurrentContext();
+
+	if (bufid >= ctx->numBuffers)
     {
 	    __alSetError(AL_INVALID_NAME);
+        __alUngrabContext(ctx);
         return(NULL);
     } // if
 
-    ctx = __alGrabCurrentContext();
     *bufout = &ctx->buffers[bufid];
 
     if ( !((*bufout)->inUse) )
@@ -109,7 +111,7 @@ ALAPI ALvoid ALAPIENTRY alGenBuffers(ALsizei n, ALuint *buffers)
         return;
 
 	// check if there're enough buffers available...
-	for (i = 0, buf = ctx->buffers; i < AL_MAXBUFFERS; i++, buf++)
+	for (i = 0, buf = ctx->buffers; i < ctx->numBuffers; i++, buf++)
 	{
         if (!buf->inUse)
         {
@@ -118,25 +120,44 @@ ALAPI ALvoid ALAPIENTRY alGenBuffers(ALsizei n, ALuint *buffers)
                 break;
         } // if
 	} // for
-	
-	if (iCount < n)
-		__alSetError(AL_OUT_OF_MEMORY);  // !!! FIXME: Better error?
-    else
+
+    if (iCount < n)  // allocate more buffers?
+    {
+        const ALsizei needed = n - iCount;
+        ALsizei newAlloc = ctx->numBuffers * 2;
+        if (newAlloc == 0)
+            newAlloc = 1;
+        while (newAlloc < needed)
+            newAlloc *= 2;
+
+        void *ptr = realloc(ctx->buffers, sizeof (ALbuffer) * (newAlloc));
+        if (ptr == NULL)
+        {
+            __alSetError(AL_OUT_OF_MEMORY);
+            __alUngrabContext(ctx);
+            return;
+        }
+        else
+        {
+            ctx->buffers = (ALbuffer *) ptr;
+            __alBuffersInit(ctx->buffers + ctx->numBuffers, newAlloc - ctx->numBuffers);
+            ctx->numBuffers = newAlloc;
+        } // else
+    } // if
+
+	iCount = 0;
+    for (i = 0, buf = ctx->buffers; i < ctx->numBuffers; i++, buf++)
 	{
-		iCount = 0;
-	    for (i = 0, buf = ctx->buffers; i < AL_MAXBUFFERS; i++, buf++)
+		if (!buf->inUse)
 		{
-			if (!buf->inUse)
-			{
-                __alBuffersInit(buf, 1);
-                buf->inUse = AL_TRUE;
-				buffers[iCount] = i + 1;  // see comments about the plus 1.
-				iCount++;
-    			if (iCount >= n)
-                    break;
-			} // if
-		} // for
-	} // else
+            __alBuffersInit(buf, 1);
+            buf->inUse = AL_TRUE;
+			buffers[iCount] = i + 1;  // see comments about the plus 1.
+			iCount++;
+			if (iCount >= n)
+                break;
+		} // if
+	} // for
 
     __alUngrabContext(ctx);
 } // alGenBuffers
@@ -194,7 +215,7 @@ ALAPI ALvoid ALAPIENTRY alDeleteBuffers(ALsizei n, ALuint *buffers)
 	    for (i = 0; i < n; i++)
 		{
             name = buffers[i] - 1; // minus one to account for Buffer Zero.
-			if ((name < AL_MAXBUFFERS) && (buf[name].inUse))
+			if ((name < ctx->numBuffers) && (buf[name].inUse))
 			{
                 __alBuffersShutdown(buf + name, 1);
                 buf[name].inUse = AL_FALSE;

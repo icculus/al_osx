@@ -270,7 +270,6 @@ ALCAPI void * ALCAPIENTRY alcCreateContext(ALCdevice *device, ALint *attrlist)
 
         dev->createdContexts[i] = ctx;
         memset(ctx, '\0', sizeof (ALcontext));
-        __alBuffersInit(ctx->buffers, AL_MAXBUFFERS);
         __alSourcesInit(ctx->sources, AL_MAXSOURCES);
         __alListenerInit(&ctx->listener);
         __alCreateLock(&ctx->contextLock);
@@ -345,7 +344,9 @@ ALCAPI ALCenum ALCAPIENTRY alcDestroyContext(ALCcontext *context)
 
     __alListenerShutdown(&ctx->listener);
     __alSourcesShutdown(ctx->sources, AL_MAXSOURCES);
-    __alBuffersShutdown(ctx->buffers, AL_MAXBUFFERS);
+    __alBuffersShutdown(ctx->buffers, ctx->numBuffers);
+    free(ctx->buffers);
+    ctx->buffers = NULL;
 
     __alUngrabDevice(dev);  // start audio callback, etc in motion again.
 
