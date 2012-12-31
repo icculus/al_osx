@@ -279,7 +279,7 @@ ALCAPI void * ALCAPIENTRY alcCreateContext(ALCdevice *device, ALint *attrlist)
         ctx->propagationSpeed = 1.0f;
         ctx->distanceModel = AL_INVERSE_DISTANCE;
         ctx->inUse = AL_TRUE;
-        ctx->suspended = AL_TRUE;
+        ctx->suspended = AL_FALSE;
         ctx->device = dev;
     } // else
 
