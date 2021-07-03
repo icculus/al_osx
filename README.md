@@ -1,4 +1,19 @@
-OpenAL: A portable audio API.
+# OBSOLETE.
+
+This was a really great OpenAL implementation in the early 2000's, but
+it has not been maintained or even tested on newer Macs. Assume it
+doesn't work now. Apple ships an OpenAL implementation with macOS and iOS
+now, [OpenAL-Soft](https://openal-soft.org/) is an extremely robust
+open source option, and [mojoAL](https://icculus.org/mojoAL/) is a single
+C file OpenAL that uses SDL2 for the heavy lifting. All of these are
+better options.
+
+Original README follows.
+
+
+# al_osx
+
+A Mac OS X implementation of OpenAL.
 
 Please visit http://www.openal.org/ for API documentation.
 
@@ -6,7 +21,7 @@ This implementation of the OpenAL API is _NOT_ the one from openal.org...it
 was originally based on the openal.org MacOS 9 version, but is an almost total
 rewrite of that codebase.
 
-This codebase is designed around and optimized for MacOS X and its CoreAudio
+This codebase is designed around and optimized for Mac OS X and its CoreAudio
 API. It does not work on MacOS 9 at all. Some notable features that set it
 apart from the standard openal.org Mac implementation:
 
@@ -42,13 +57,8 @@ complete OpenAL library are missing, and some elements are not perfectly in
 line with the 1.0 specification at this time. Bug reports and patches to make
 the implementation more robust are welcome.
 
-Please see the file COPYING for licensing information, TODO for things still
-to be done, and INSTALL for basic installation instructions.
-
-Bug reports can go to my personal email address for now. If this software
-proves to be wildly popular, I'll set up a mailing list for it. There are
-mailing lists details for general OpenAL development questions unrelated to
-a specific implementation at www.openal.org.
+Please see the file LICENSE.txt for licensing information, TODO.txt for things still
+to be done, and INSTALL.txt for basic installation instructions.
 
 --ryan. (icculus@icculus.org)
 
