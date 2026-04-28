@@ -4,8 +4,8 @@ This was a really great OpenAL implementation in the early 2000's, but
 it has not been maintained or even tested on newer Macs. Assume it
 doesn't work now. Apple ships an OpenAL implementation with macOS and iOS
 now, [OpenAL-Soft](https://openal-soft.org/) is an extremely robust
-open source option, and [mojoAL](https://icculus.org/mojoAL/) is a single
-C file OpenAL that uses SDL2 for the heavy lifting. All of these are
+open source option, and [MojoAL](https://icculus.org/mojoAL/) is a single
+C file OpenAL that uses SDL3 for the heavy lifting. All of these are
 better options.
 
 Original README follows.
